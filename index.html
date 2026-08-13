@@ -313,9 +313,12 @@
   }
   .lane-btn:hover{background:rgba(8,31,66,0.08); color:var(--navy);}
   .lane-cards{
-    overflow-y:auto; padding:2px 8px 4px 8px;
+    overflow-y:auto; padding:8px 8px 4px 8px;
     display:flex; flex-direction:column; gap:8px; min-height:8px;
   }
+  /* Coloured lanes tint their header, so the first card needs a little more
+     breathing room beneath that block of colour. */
+  .lane.has-color .lane-cards{padding-top:10px;}
   .lane-footer{padding:6px 8px 10px 8px;}
   .add-card-btn{
     width:100%; text-align:left;
@@ -370,7 +373,12 @@
   .pcard.search-hidden{display:none;}
   .pcard-labels{display:flex; flex-wrap:wrap; gap:4px;}
   .pcard-label{
-    height:7px; width:34px; border-radius:4px;
+    border-radius:4px;
+    padding:2px 8px;
+    font-size:10.5px; font-weight:700;
+    line-height:1.5;
+    max-width:100%;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   .pcard-title{font-size:13px; font-weight:600; color:#1c2431; line-height:1.35; word-wrap:break-word;}
   .pcard-badges{display:flex; flex-wrap:wrap; gap:5px; align-items:center;}
@@ -436,9 +444,31 @@
 
   /* Card modal is two columns: the card itself on the left, comments kept in
      a sidebar on the right so a long description never buries the discussion. */
-  .cm-layout{display:grid; grid-template-columns:minmax(0,1fr) 330px;}
-  .cm-main{padding:24px; min-width:0;}
+  /* Footer spans both columns so Close sits at the modal's own bottom-right,
+     not tucked under the left column. */
+  .cm-layout{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 330px;
+    grid-template-areas:"main side" "foot foot";
+  }
+  .cm-main{padding:24px; min-width:0; grid-area:main;}
+  .cm-foot{
+    grid-area:foot;
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px;
+    padding:14px 20px;
+    border-top:1px solid var(--gray-border);
+    background:var(--white);
+  }
+  .btn-close{
+    background:#b7e4c7;
+    color:#14532d;
+    border:none;
+    padding:9px 22px;
+  }
+  .btn-close:hover{background:#a3dbb7;}
   .cm-side{
+    grid-area:side;
     background:var(--gray-bg);
     border-left:1px solid var(--gray-border);
     padding:20px;
@@ -474,7 +504,7 @@
     padding:6px 0;
   }
   @media (max-width: 820px){
-    .cm-layout{grid-template-columns:1fr;}
+    .cm-layout{grid-template-columns:1fr; grid-template-areas:"main" "side" "foot";}
     .cm-side{
       border-left:none; border-top:1px solid var(--gray-border);
       max-height:none; overflow-y:visible;
@@ -499,6 +529,44 @@
   .cm-grid-2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
   .cm-section-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
   .cm-section-head .cm-section-title{margin-bottom:0;}
+
+  /* Rich text description */
+  .rt-toolbar{
+    display:flex; gap:3px; align-items:center;
+    border:1px solid var(--gray-border); border-bottom:none;
+    border-radius:6px 6px 0 0;
+    padding:5px 6px; background:#fbfcfd;
+    flex-wrap:wrap;
+  }
+  .rt-btn{
+    background:none; border:none; cursor:pointer;
+    padding:4px 8px; border-radius:4px;
+    font-size:12.5px; color:var(--gray-text); font-family:var(--font);
+    line-height:1.4; min-width:26px;
+  }
+  .rt-btn:hover{background:rgba(8,31,66,0.08); color:var(--navy);}
+  .rt-btn b{font-weight:800;}
+  .rt-btn i{font-style:italic;}
+  .rt-sep{width:1px; height:16px; background:var(--gray-border); margin:0 3px;}
+  .rt-editor{
+    border:1px solid var(--gray-border); border-radius:0 0 6px 6px;
+    padding:9px 10px; min-height:80px;
+    font-size:13.5px; line-height:1.55; color:#1c2431;
+    background:var(--white);
+    overflow-wrap:break-word;
+  }
+  .rt-editor:focus{
+    outline:none; border-color:var(--teal);
+    box-shadow:0 0 0 3px rgba(71,178,204,0.15);
+  }
+  .rt-editor:empty:before{
+    content:attr(data-placeholder);
+    color:#9aa3af;
+  }
+  .rt-editor a{color:#1f6fb2; text-decoration:underline;}
+  .rt-editor ul, .rt-editor ol{margin:6px 0; padding-left:22px;}
+  .rt-editor p{margin:0 0 8px 0;}
+  .rt-editor p:last-child{margin-bottom:0;}
 
   .cf-edit-row{display:flex; justify-content:flex-end; margin-bottom:4px;}
   .cf-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:12px 14px;}
@@ -1401,7 +1469,9 @@ function boardCustomFields(){
 function cardFrontHtml(c){
   const labels = boardLabels().filter(l => (c.labelIds||[]).includes(l.id));
   const labelsHtml = labels.length
-    ? `<div class="pcard-labels">${labels.map(l=>`<div class="pcard-label" style="background:${escAttr(l.color)}" title="${escAttr(l.name)}"></div>`).join('')}</div>` : '';
+    ? `<div class="pcard-labels">${labels.map(l=>
+        `<div class="pcard-label" style="background:${escAttr(l.color)}; color:${labelTextColor(l.color)}" title="${escAttr(l.name)}">${escHtml(l.name || 'Unnamed')}</div>`
+      ).join('')}</div>` : '';
 
   const badges = [];
   if(c.startDate || c.dueDate){
@@ -1414,7 +1484,7 @@ function cardFrontHtml(c){
     const done = cl.filter(i=>i.done).length;
     badges.push(`<span class="pbadge ${done===cl.length?'check-done':''}">☑ ${done}/${cl.length}</span>`);
   }
-  if((c.desc||'').trim()) badges.push(`<span class="pbadge" title="Has description">≡</span>`);
+  if(descToText(c.desc)) badges.push(`<span class="pbadge" title="Has description">≡</span>`);
   const comments = c.comments || [];
   if(comments.length) badges.push(`<span class="pbadge">💬 ${comments.length}</span>`);
 
@@ -1651,7 +1721,7 @@ function applySearch(){
       return f.name + ' ' + v;
     }).join(' ');
     const checklistText = (c.checklist||[]).map(i=>i.text).join(' ');
-    const hay = [c.title, c.desc, labelNames, memberNames, fieldText, checklistText].join(' ').toLowerCase();
+    const hay = [c.title, descToText(c.desc), labelNames, memberNames, fieldText, checklistText].join(' ').toLowerCase();
     el.classList.toggle('search-hidden', !hay.includes(q));
   });
 }
@@ -1885,10 +1955,14 @@ function renderCardModal(){
   // modal was reopened — remember what's focused and put it back afterwards,
   // in-progress text and caret included.
   const ae = document.activeElement;
-  const focused = (ae && modal.contains(ae) && ae.id &&
-      (ae.tagName === 'TEXTAREA' || (ae.tagName === 'INPUT' && (ae.type === 'text' || ae.type === 'date'))))
-    ? {id: ae.id, value: ae.value, start: ae.selectionStart, end: ae.selectionEnd}
-    : null;
+  let focused = null;
+  if(ae && modal.contains(ae) && ae.id){
+    if(ae.isContentEditable){
+      focused = {id: ae.id, rich: true, html: ae.innerHTML, caret: rtGetCaret(ae)};
+    } else if(ae.tagName === 'TEXTAREA' || (ae.tagName === 'INPUT' && (ae.type === 'text' || ae.type === 'date'))){
+      focused = {id: ae.id, value: ae.value, start: ae.selectionStart, end: ae.selectionEnd};
+    }
+  }
 
   const l = listById(c.listId);
   const labels = boardLabels();
@@ -1941,8 +2015,22 @@ function renderCardModal(){
 
     <div class="cm-section">
       <div class="cm-section-title">Description</div>
-      <textarea id="cmDesc" style="min-height:70px; resize:vertical;" placeholder="Add a more detailed description..."
-        oninput="debouncedCardUpdate('${c.id}','desc',this.value)">${escHtml(c.desc||'')}</textarea>
+      <div class="rt-toolbar">
+        <button type="button" class="rt-btn" title="Bold" onmousedown="event.preventDefault()" onclick="rtCmd('bold')"><b>B</b></button>
+        <button type="button" class="rt-btn" title="Italic" onmousedown="event.preventDefault()" onclick="rtCmd('italic')"><i>I</i></button>
+        <button type="button" class="rt-btn" title="Underline" onmousedown="event.preventDefault()" onclick="rtCmd('underline')"><u>U</u></button>
+        <span class="rt-sep"></span>
+        <button type="button" class="rt-btn" title="Bulleted list" onmousedown="event.preventDefault()" onclick="rtCmd('insertUnorderedList')">• List</button>
+        <button type="button" class="rt-btn" title="Numbered list" onmousedown="event.preventDefault()" onclick="rtCmd('insertOrderedList')">1. List</button>
+        <span class="rt-sep"></span>
+        <button type="button" class="rt-btn" title="Add link" onmousedown="event.preventDefault()" onclick="rtLink('${c.id}')">🔗 Link</button>
+        <button type="button" class="rt-btn" title="Remove formatting" onmousedown="event.preventDefault()" onclick="rtCmd('removeFormat')">Clear</button>
+      </div>
+      <div class="rt-editor" id="cmDesc" contenteditable="true"
+        data-placeholder="Add a more detailed description…"
+        oninput="debouncedCardUpdate('${c.id}','desc', sanitizeHtml(this.innerHTML))"
+        onblur="debouncedCardUpdate('${c.id}','desc', sanitizeHtml(this.innerHTML), 0)"
+      >${descToHtml(c.desc)}</div>
     </div>
 
     <div class="cm-section">
@@ -1973,10 +2061,6 @@ function renderCardModal(){
       </div>
     </div>
 
-    <div class="modal-actions" style="justify-content:space-between;">
-      <button class="btn btn-danger btn-sm" onclick="deleteCard('${c.id}')">Delete Card</button>
-      <button class="btn btn-ghost btn-sm" onclick="closeCardModal()">Close</button>
-    </div>
     </div>
 
     <aside class="cm-side">
@@ -2007,19 +2091,188 @@ function renderCardModal(){
         </div>`;
       }).join('') : `<div class="cm-empty-comments">No comments yet. Anything you post here is visible to the whole team.</div>`}
     </aside>
+
+    <div class="cm-foot">
+      <button class="btn btn-danger btn-sm" onclick="deleteCard('${c.id}')">Delete Card</button>
+      <button class="btn btn-close" onclick="closeCardModal()">Close</button>
+    </div>
     </div>
   `;
 
   if(focused){
     const el = document.getElementById(focused.id);
     if(el){
-      // The typed value wins over whatever the snapshot carried, so a debounced
+      // What was typed wins over whatever the snapshot carried, so a debounced
       // save still in flight isn't rolled back mid-sentence.
-      el.value = focused.value;
-      el.focus();
-      try{ el.setSelectionRange(focused.start, focused.end); }catch(_){}
+      if(focused.rich){
+        el.innerHTML = focused.html;
+        el.focus();
+        rtSetCaret(el, focused.caret);
+      } else {
+        el.value = focused.value;
+        el.focus();
+        try{ el.setSelectionRange(focused.start, focused.end); }catch(_){}
+      }
     }
   }
+}
+
+/* ---------------- Rich text description ----------------
+   Descriptions are stored as HTML, so everything written to a card is passed
+   through this first. It keeps a short list of formatting tags and drops
+   everything else — scripts, event handlers, styles, embedded frames — rather
+   than trusting whatever the browser's editor or a paste happened to produce. */
+const RT_ALLOWED = new Set(['B','STRONG','I','EM','U','A','UL','OL','LI','BR','P','DIV','SPAN']);
+/* Unwrapping these would spill their source into the page as visible text, so
+   they go entirely rather than having their contents kept. */
+const RT_DROP_WHOLE = new Set(['SCRIPT','STYLE','TEMPLATE','NOSCRIPT','IFRAME','OBJECT','EMBED']);
+
+function sanitizeHtml(html){
+  const doc = document.implementation.createHTMLDocument('');
+  doc.body.innerHTML = html || '';
+  const walk = node=>{
+    [...node.childNodes].forEach(child=>{
+      if(child.nodeType === 3) return; // text is safe as-is
+      if(child.nodeType !== 1){ child.remove(); return; }
+      if(RT_DROP_WHOLE.has(child.tagName)){ child.remove(); return; }
+      if(!RT_ALLOWED.has(child.tagName)){
+        // Keep what the person wrote, lose the tag around it.
+        while(child.firstChild) node.insertBefore(child.firstChild, child);
+        child.remove();
+        return;
+      }
+      [...child.attributes].forEach(attr=>{
+        const keep = child.tagName === 'A' && attr.name === 'href' && isSafeUrl(attr.value);
+        if(!keep) child.removeAttribute(attr.name);
+      });
+      if(child.tagName === 'A'){
+        if(!child.getAttribute('href')){
+          while(child.firstChild) node.insertBefore(child.firstChild, child);
+          child.remove();
+          return;
+        }
+        // Links open away from the app, and rel stops the new tab getting a
+        // handle back on this one.
+        child.setAttribute('target', '_blank');
+        child.setAttribute('rel', 'noopener noreferrer');
+      }
+      walk(child);
+    });
+  };
+  walk(doc.body);
+  return doc.body.innerHTML;
+}
+
+function isSafeUrl(url){
+  const v = (url || '').trim().toLowerCase();
+  // Blocks javascript: and data: payloads while allowing ordinary links,
+  // mailto, and same-app relative paths.
+  return /^(https?:\/\/|mailto:|tel:|\/|#)/.test(v);
+}
+
+/* Descriptions written before rich text existed are plain text, newlines and
+   all. Anything with no tags is treated that way so it doesn't collapse. */
+function descToHtml(desc){
+  const s = desc || '';
+  if(!s) return '';
+  if(!/<[a-z][\s\S]*>/i.test(s)){
+    return escHtml(s).replace(/\n/g, '<br>');
+  }
+  return sanitizeHtml(s);
+}
+/* Plain-text form, for the card-front "has a description" check and search. */
+function descToText(desc){
+  const doc = document.implementation.createHTMLDocument('');
+  doc.body.innerHTML = descToHtml(desc);
+  return (doc.body.textContent || '').trim();
+}
+
+function rtCmd(cmd){
+  const el = document.getElementById('cmDesc');
+  if(!el) return;
+  el.focus();
+  document.execCommand(cmd, false, null);
+  el.dispatchEvent(new Event('input'));
+}
+
+function rtLink(cardId){
+  const el = document.getElementById('cmDesc');
+  if(!el) return;
+  el.focus();
+  const sel = window.getSelection();
+  const hasSelection = sel && sel.rangeCount && !sel.isCollapsed && el.contains(sel.anchorNode);
+  // The selection is lost the moment the prompt dialog takes focus, so it is
+  // captured here and restored before the link is applied.
+  const saved = hasSelection ? sel.getRangeAt(0).cloneRange() : null;
+  const selectedText = hasSelection ? sel.toString() : '';
+
+  openPrompt({
+    title: 'Add link',
+    sub: selectedText
+      ? `Linking "${selectedText.length > 40 ? selectedText.slice(0,40) + '…' : selectedText}".`
+      : 'Paste the address. It will be inserted at the end of the description.',
+    value: 'https://',
+    okLabel: 'Add link',
+    onOk: url=>{
+      url = (url || '').trim();
+      if(!url || url === 'https://') return;
+      if(!/^[a-z][a-z0-9+.-]*:/i.test(url) && !url.startsWith('/') && !url.startsWith('#')){
+        url = 'https://' + url;
+      }
+      if(!isSafeUrl(url)){ showToast("That link type isn't allowed"); return; }
+      el.focus();
+      if(saved){
+        const s = window.getSelection();
+        s.removeAllRanges();
+        s.addRange(saved);
+        document.execCommand('createLink', false, url);
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.textContent = url;
+        el.appendChild(a);
+        el.appendChild(document.createTextNode(' '));
+      }
+      el.innerHTML = sanitizeHtml(el.innerHTML);
+      debouncedCardUpdate(cardId, 'desc', el.innerHTML, 0);
+    }
+  });
+}
+
+/* Caret position as a character offset, so the editor can be re-rendered by an
+   incoming snapshot without dumping the cursor at the end of the text. */
+function rtGetCaret(el){
+  const sel = window.getSelection();
+  if(!sel || !sel.rangeCount || !el.contains(sel.anchorNode)) return null;
+  const range = sel.getRangeAt(0).cloneRange();
+  range.selectNodeContents(el);
+  range.setEnd(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset);
+  return range.toString().length;
+}
+function rtSetCaret(el, offset){
+  if(offset == null) return;
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+  let seen = 0, node;
+  while((node = walker.nextNode())){
+    const len = node.textContent.length;
+    if(seen + len >= offset){
+      const range = document.createRange();
+      range.setStart(node, Math.max(0, offset - seen));
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
+    seen += len;
+  }
+  // Offset past the end (content shrank) — park the caret at the end.
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
 }
 
 /* ---------------- Custom fields ---------------- */
