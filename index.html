@@ -555,6 +555,20 @@
     background:var(--white);
     overflow-wrap:break-word;
   }
+  /* Collapsed by default so a long spec sheet doesn't push the checklist and
+     fields off the screen. Scrolls in place; the toggle opens it fully. */
+  .rt-editor.collapsed{max-height:150px; overflow-y:auto;}
+  .cm-desc-head{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    margin-bottom:8px;
+  }
+  .cm-desc-head .cm-section-title{margin-bottom:0;}
+  .rt-toggle{
+    background:none; border:none; cursor:pointer;
+    font-size:11.5px; font-weight:700; color:var(--teal);
+    font-family:inherit; padding:2px 0;
+  }
+  .rt-toggle:hover{text-decoration:underline;}
   .rt-editor:focus{
     outline:none; border-color:var(--teal);
     box-shadow:0 0 0 3px rgba(71,178,204,0.15);
@@ -2014,7 +2028,10 @@ function renderCardModal(){
     </div>
 
     <div class="cm-section">
-      <div class="cm-section-title">Description</div>
+      <div class="cm-desc-head">
+        <div class="cm-section-title">Description</div>
+        <button class="rt-toggle" id="rtToggle" onclick="toggleDescExpanded()">${descExpanded() ? '▴ Collapse' : '▾ Expand'}</button>
+      </div>
       <div class="rt-toolbar">
         <button type="button" class="rt-btn" title="Bold" onmousedown="event.preventDefault()" onclick="rtCmd('bold')"><b>B</b></button>
         <button type="button" class="rt-btn" title="Italic" onmousedown="event.preventDefault()" onclick="rtCmd('italic')"><i>I</i></button>
@@ -2026,7 +2043,7 @@ function renderCardModal(){
         <button type="button" class="rt-btn" title="Add link" onmousedown="event.preventDefault()" onclick="rtLink('${c.id}')">🔗 Link</button>
         <button type="button" class="rt-btn" title="Remove formatting" onmousedown="event.preventDefault()" onclick="rtCmd('removeFormat')">Clear</button>
       </div>
-      <div class="rt-editor" id="cmDesc" contenteditable="true"
+      <div class="rt-editor${descExpanded() ? '' : ' collapsed'}" id="cmDesc" contenteditable="true"
         data-placeholder="Add a more detailed description…"
         oninput="debouncedCardUpdate('${c.id}','desc', sanitizeHtml(this.innerHTML))"
         onblur="debouncedCardUpdate('${c.id}','desc', sanitizeHtml(this.innerHTML), 0)"
@@ -2185,6 +2202,20 @@ function descToText(desc){
   const doc = document.implementation.createHTMLDocument('');
   doc.body.innerHTML = descToHtml(desc);
   return (doc.body.textContent || '').trim();
+}
+
+/* Expanded/collapsed is a per-person view preference, so it lives in this
+   browser rather than on the shared card. */
+function descExpanded(){ return localStorage.getItem('plannerDescExpanded') === '1'; }
+function toggleDescExpanded(){
+  const on = !descExpanded();
+  localStorage.setItem('plannerDescExpanded', on ? '1' : '0');
+  const el = document.getElementById('cmDesc');
+  const btn = document.getElementById('rtToggle');
+  // Toggled directly rather than by re-rendering, so the caret and any
+  // half-finished sentence stay exactly where they are.
+  if(el) el.classList.toggle('collapsed', !on);
+  if(btn) btn.textContent = on ? '▴ Collapse' : '▾ Expand';
 }
 
 function rtCmd(cmd){
