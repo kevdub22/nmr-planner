@@ -211,7 +211,16 @@
     transition:border-color .12s ease;
   }
   .board-tile:hover{border-color:var(--teal);}
-  .board-tile .bt-name{font-weight:700; color:var(--navy); font-size:15px; font-family:'Instrument Sans', var(--font);}
+  .board-tile.dragging{opacity:0.45;}
+  .board-tile.drag-over{border-color:var(--teal); box-shadow:inset 3px 0 0 0 var(--teal);}
+  .bt-top{display:flex; align-items:flex-start; gap:8px;}
+  .bt-drag{
+    margin-left:auto; cursor:grab; color:#b6bfcc;
+    font-size:14px; line-height:1; user-select:none; flex-shrink:0;
+  }
+  .bt-drag:hover{color:var(--navy);}
+  .bt-drag:active{cursor:grabbing;}
+  .board-tile .bt-name{font-weight:700; color:var(--navy); font-size:15px; font-family:'Instrument Sans', var(--font); min-width:0;}
   .board-tile .bt-meta{font-size:12px; color:var(--gray-text);}
   .board-tile .bt-actions{margin-top:auto; display:flex; gap:6px;}
   .board-tile.new-tile{
@@ -491,6 +500,7 @@
   .cm-section-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
   .cm-section-head .cm-section-title{margin-bottom:0;}
 
+  .cf-edit-row{display:flex; justify-content:flex-end; margin-bottom:4px;}
   .cf-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:12px 14px;}
   .cf-item{min-width:0;}
   .cf-label{
@@ -516,6 +526,58 @@
     .cf-grid{grid-template-columns:1fr 1fr;}
   }
 
+  /* Labels panel */
+  .modal.modal-labels{max-width:340px; padding:16px 18px 18px 18px;}
+  .lb-head{
+    display:flex; align-items:center; justify-content:center;
+    position:relative; margin-bottom:14px;
+  }
+  .lb-head h3{margin:0; font-size:15px;}
+  .lb-close{
+    position:absolute; right:-4px; top:-2px;
+    background:none; border:none; cursor:pointer;
+    font-size:15px; color:var(--gray-text); padding:4px 6px; border-radius:5px;
+  }
+  .lb-close:hover{background:var(--gray-bg); color:var(--navy);}
+  #labelSearch{margin-bottom:14px;}
+  .lb-sub{
+    font-size:11px; font-weight:700; color:var(--gray-text);
+    text-transform:uppercase; letter-spacing:0.4px; margin-bottom:8px;
+  }
+  #labelList{max-height:46vh; overflow-y:auto; margin-bottom:12px;}
+  .lb-row{display:flex; align-items:center; gap:9px; margin-bottom:7px;}
+  .lb-row input[type=checkbox]{
+    width:17px; height:17px; accent-color:var(--navy); cursor:pointer; margin:0; flex-shrink:0;
+  }
+  .lb-pill{
+    flex:1; min-width:0;
+    border:none; border-radius:5px;
+    padding:9px 12px; text-align:left;
+    font-size:13.5px; font-weight:600; font-family:inherit;
+    cursor:pointer;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .lb-pill:hover{filter:brightness(0.96);}
+  .lb-edit{
+    background:none; border:none; cursor:pointer;
+    color:var(--gray-text); padding:4px; border-radius:5px;
+    font-size:13px; line-height:1; flex-shrink:0;
+  }
+  .lb-edit:hover{background:var(--gray-bg); color:var(--navy);}
+  .lb-create{width:100%; justify-content:center;}
+  .lb-editor{
+    border:1px solid var(--gray-border); border-radius:8px;
+    padding:12px; margin-bottom:10px; background:#fbfcfd;
+  }
+  .lb-editor input[type=text]{margin-bottom:10px;}
+  .lb-swatches{display:grid; grid-template-columns:repeat(6, 1fr); gap:6px; margin-bottom:12px;}
+  .lb-swatch{
+    height:28px; border-radius:5px; border:2px solid transparent; cursor:pointer; padding:0;
+  }
+  .lb-swatch.on{border-color:var(--navy);}
+  .lb-editor-actions{display:flex; gap:6px; justify-content:space-between;}
+  .lb-empty{font-size:12.5px; color:var(--gray-text); padding:8px 0;}
+
   .label-chip{
     display:inline-flex; align-items:center; gap:6px;
     border-radius:5px; padding:5px 10px;
@@ -524,7 +586,13 @@
     opacity:0.5; user-select:none;
   }
   .label-chip.on{opacity:1; border-color:var(--navy);}
-  .label-chips{display:flex; flex-wrap:wrap; gap:6px;}
+  .label-chips{display:flex; flex-wrap:wrap; gap:6px; align-items:center;}
+  .label-add{
+    border:1px dashed var(--gray-border); background:var(--white);
+    border-radius:5px; padding:5px 11px; cursor:pointer;
+    font-size:13px; color:var(--gray-text); font-family:inherit; line-height:1.2;
+  }
+  .label-add:hover{border-color:var(--teal); color:var(--navy); background:#f7fbfc;}
   .label-edit-btn{
     background:none; border:none; cursor:pointer;
     font-size:11px; color:var(--teal); font-weight:700; padding:2px 0;
@@ -807,7 +875,7 @@
       <div class="toolbar">
         <div>
           <h1>Team Members</h1>
-          <div class="page-sub" style="margin-bottom:0;">Everyone who has signed in to the portal. Names come from Google, so there's nothing to type here.</div>
+          <div class="page-sub" style="margin-bottom:0;">Everyone who has signed in to the portal. People appear here automatically — you can edit your own name, and it updates everywhere you're mentioned.</div>
         </div>
         <div class="toolbar-actions" id="membersBackBtn"></div>
       </div>
@@ -825,6 +893,19 @@
 </div>
 
 <!-- GENERIC PROMPT MODAL -->
+<div class="modal-backdrop" id="labelsModalBackdrop">
+  <div class="modal modal-labels" role="dialog" aria-modal="true" aria-labelledby="labelsTitle">
+    <div class="lb-head">
+      <h3 id="labelsTitle">Labels</h3>
+      <button class="lb-close" onclick="closeLabelsPanel()" aria-label="Close">✕</button>
+    </div>
+    <input type="text" id="labelSearch" placeholder="Search labels..." oninput="renderLabelsPanel()">
+    <div class="lb-sub">Labels</div>
+    <div id="labelList"></div>
+    <button class="btn btn-ghost lb-create" onclick="startCreateLabel()">Create a new label</button>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="chooserModalBackdrop">
   <div class="modal" role="dialog" aria-modal="true">
     <h3 id="chooserTitle"></h3>
@@ -945,7 +1026,11 @@ const DEFAULT_CUSTOM_FIELDS = [
     {id:'cfo_hold',   label:'On Hold',  color:'#fde2b0'},
     {id:'cfo_done',   label:'Complete', color:'#cfd8e3'}
   ]},
-  {id:'cf_sales',      name:'Salesperson',        type:'dropdown', options:[]},
+  {id:'cf_sales', name:'Salesperson', type:'dropdown', options:[
+    'Alex Barrata','Charlie Corsentino','Chip Demilio','Dean Demetris','Ed Conrad',
+    'Eric Skoloda','Jonathan Evans','Matt Marble','Connor McManimon','Anthony Meduri III',
+    'Mike Meduri','Jake Miller','Kyle Morris','Andy Muller','Jeremy Sherry','Staging'
+  ].map(n=>({id:'cfo_' + n.toLowerCase().replace(/[^a-z0-9]+/g,'_'), label:n, color:''}))},
   {id:'cf_nmrest',     name:'NMR Estimate',       type:'text'},
   {id:'cf_hardcost',   name:'Hard Cost Estimate', type:'text'},
   {id:'cf_website',    name:'Website',            type:'text'},
@@ -958,14 +1043,31 @@ const DEFAULT_CUSTOM_FIELDS = [
   {id:'cf_sow',  name:'SOW Sent?', type:'checkbox'}
 ];
 
+/* The palette the label editor offers. */
+const LABEL_COLORS = [
+  '#b7e4c7','#dbeca8','#f2e08a','#f0d9a8','#f4b9a8',
+  '#f9d4e9','#f6c9e0','#e2d5f5','#c9d9f7','#cfe9f8',
+  '#85c5e0','#dedede'
+];
+
+/* NMR's working label set. Used for new boards, and for any board still
+   carrying the unnamed placeholder labels from before this existed. */
 const DEFAULT_LABELS = [
-  {id:'lb1', name:'', color:'#47b2cc'},
-  {id:'lb2', name:'', color:'#1e8a5f'},
-  {id:'lb3', name:'', color:'#e2b93b'},
-  {id:'lb4', name:'', color:'#e07b39'},
-  {id:'lb5', name:'', color:'#c0392b'},
-  {id:'lb6', name:'', color:'#8e6bb8'},
-  {id:'lb7', name:'', color:'#17305e'},
+  {id:'lb_camera',    name:'Camera Based',    color:'#b7e4c7'},
+  {id:'lb_conttest',  name:'Content Testing', color:'#b7e4c7'},
+  {id:'lb_email',     name:'Email Blast',     color:'#f2e08a'},
+  {id:'lb_forms',     name:'Forms',           color:'#f2e08a'},
+  {id:'lb_signage',   name:'Digital Signage', color:'#f0d9a8'},
+  {id:'lb_graphic',   name:'Graphic Design',  color:'#f0d9a8'},
+  {id:'lb_intuiface', name:'Intuiface',       color:'#e2d5f5'},
+  {id:'lb_pullprep',  name:'Pull and Prep',   color:'#e2d5f5'},
+  {id:'lb_interactive', name:'Interactive',   color:'#c9d9f7'},
+  {id:'lb_photo',     name:'Photography',     color:'#cfe9f8'},
+  {id:'lb_vr',        name:'VR',              color:'#85c5e0'},
+  {id:'lb_contsupp',  name:'Content Support', color:'#dbeca8'},
+  {id:'lb_iwall',     name:'iWall',           color:'#f9d4e9'},
+  {id:'lb_platform',  name:'Platform',        color:'#f6c9e0'},
+  {id:'lb_programming', name:'Programming',   color:'#dedede'},
 ];
 
 function uid(){ return 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7); }
@@ -997,7 +1099,7 @@ function watchGlobal(){
   setLoading(true);
   boardsRef().onSnapshot(snap=>{
     boards = snap.docs.map(d=>({id:d.id, ...d.data()}));
-    boards.sort((a,b)=> (b.updatedAt||b.createdAt||"").localeCompare(a.updatedAt||a.createdAt||""));
+    sortBoards();
     if(firstLoad){ firstLoad = false; setLoading(false); }
     renderNav();
     if(currentView === 'boards') renderBoardTiles();
@@ -1061,6 +1163,19 @@ function goHome(){
   renderBoardTiles();
 }
 
+/* Boards keep a manual order. Anything without a pos yet (created before
+   reordering existed) sorts after the arranged ones, newest first, so the list
+   stays stable until someone drags it. */
+function sortBoards(){
+  boards.sort((a,b)=>{
+    const ap = a.pos, bp = b.pos;
+    if(ap != null && bp != null) return ap - bp;
+    if(ap != null) return -1;
+    if(bp != null) return 1;
+    return (b.updatedAt||b.createdAt||"").localeCompare(a.updatedAt||a.createdAt||"");
+  });
+}
+
 function boardById(id){ return boards.find(b=>b.id === id); }
 function cardById(id){ return cards.find(c=>c.id === id); }
 function listById(id){ return lists.find(l=>l.id === id); }
@@ -1106,8 +1221,15 @@ function fmtWhen(iso){
 function renderBoardTiles(){
   const wrap = document.getElementById('boardTiles');
   const tiles = boards.map(b=>`
-    <div class="board-tile" onclick="openBoard('${b.id}')">
-      <div class="bt-name">${escHtml(b.name||'Untitled Board')}</div>
+    <div class="board-tile" data-board-id="${b.id}" onclick="openBoard('${b.id}')"
+         ondragover="boardDragOver(event,'${b.id}')" ondragleave="boardDragLeave(event)"
+         ondrop="boardDrop(event,'${b.id}')" ondragend="boardDragEnd(event)">
+      <div class="bt-top">
+        <div class="bt-name">${escHtml(b.name||'Untitled Board')}</div>
+        <span class="bt-drag" title="Drag to reorder" draggable="true"
+          onclick="event.stopPropagation()"
+          ondragstart="boardDragStart(event,'${b.id}')">&#9776;</span>
+      </div>
       <div class="bt-meta">Updated ${fmtWhen(b.updatedAt||b.createdAt)}</div>
       <div class="bt-actions">
         <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); promptRenameBoard('${b.id}')">Rename</button>
@@ -1183,9 +1305,13 @@ function promptNewBoard(){
       if(!name) return;
       const id = uid();
       const now = new Date().toISOString();
+      // New boards go to the front, where the newest one used to sit before
+      // the order became manual.
+      const minPos = boards.reduce((m,b)=> b.pos != null ? Math.min(m, b.pos) : m, Infinity);
+      const pos = minPos === Infinity ? 1000 : minPos - 1000;
       await boardsRef().doc(id).set({
         name, labels: DEFAULT_LABELS, customFields: DEFAULT_CUSTOM_FIELDS,
-        createdAt: now, updatedAt: now
+        pos, createdAt: now, updatedAt: now
       });
       openBoard(id);
       showToast(`Board "${name}" created`);
@@ -1260,7 +1386,12 @@ function dueClass(due){
 
 function boardLabels(){
   const b = boardById(currentBoardId);
-  return (b && Array.isArray(b.labels) && b.labels.length) ? b.labels : DEFAULT_LABELS;
+  if(!b || !Array.isArray(b.labels) || !b.labels.length) return DEFAULT_LABELS;
+  // Boards created before the NMR label set existed hold seven unnamed colour
+  // swatches. Nothing can have been filed under a nameless label, so treat
+  // that untouched state as "no labels yet" and show the real set instead.
+  if(b.labels.every(l => !(l.name || '').trim())) return DEFAULT_LABELS;
+  return b.labels;
 }
 function boardCustomFields(){
   const b = boardById(currentBoardId);
@@ -1430,6 +1561,69 @@ document.addEventListener('click', e=>{
   if(colorMenuEl && !colorMenuEl.contains(e.target)) closeColorMenu();
 });
 document.addEventListener('keydown', e=>{ if(e.key === 'Escape') closeColorMenu(); });
+
+/* ---------------- Board reordering ----------------
+   Same fractional-position scheme the lists and cards use: dropping a board
+   writes one number rather than renumbering the whole set. */
+let boardDragId = null;
+
+function boardDragStart(e, id){
+  boardDragId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  try{ e.dataTransfer.setData('text/plain', id); }catch(_){}
+  const tile = e.currentTarget.closest('.board-tile');
+  if(tile) tile.classList.add('dragging');
+  e.stopPropagation();
+}
+function boardDragOver(e, id){
+  if(!boardDragId || boardDragId === id) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+}
+function boardDragLeave(e){ e.currentTarget.classList.remove('drag-over'); }
+function boardDragEnd(e){
+  boardDragId = null;
+  document.querySelectorAll('.board-tile.dragging, .board-tile.drag-over')
+    .forEach(el=>el.classList.remove('dragging','drag-over'));
+}
+async function boardDrop(e, targetId){
+  e.preventDefault();
+  e.stopPropagation();
+  const srcId = boardDragId;
+  boardDragEnd(e);
+  if(!srcId || srcId === targetId) return;
+
+  // First reorder ever on this workspace: nobody has a pos, so stamp the
+  // current order onto every board before inserting, otherwise "between" has
+  // nothing to work with.
+  if(boards.some(b=>b.pos == null)){
+    const batch = db.batch();
+    boards.forEach((b,i)=>{
+      if(b.pos == null){ b.pos = (i+1) * 1000; batch.update(boardsRef().doc(b.id), {pos: b.pos}); }
+    });
+    try{ await batch.commit(); }catch(err){ console.error(err); }
+  }
+
+  const ordered = boards.filter(b=>b.id !== srcId);
+  const idx = ordered.findIndex(b=>b.id === targetId);
+  const target = boardById(targetId);
+  if(!target) return;
+  const prev = idx > 0 ? ordered[idx-1].pos : null;
+  const pos = between(prev, target.pos);
+
+  // Move locally first so the tiles settle immediately rather than waiting on
+  // the round trip.
+  const moved = boardById(srcId);
+  if(moved) moved.pos = pos;
+  sortBoards();
+  renderBoardTiles();
+  renderNav();
+
+  boardsRef().doc(srcId).update({pos}).catch(err=>{
+    console.error(err); showToast("Couldn't save board order");
+  });
+}
 
 function toggleCollapse(listId){
   setCollapsed(listId, !collapsedLists()[listId]);
@@ -1673,7 +1867,8 @@ document.getElementById('cardModalBackdrop').addEventListener('click', e=>{
 });
 document.addEventListener('keydown', e=>{
   if(e.key === 'Escape'){
-    if(document.getElementById('chooserModalBackdrop').classList.contains('open')) closeChooser();
+    if(document.getElementById('labelsModalBackdrop').classList.contains('open')) closeLabelsPanel();
+    else if(document.getElementById('chooserModalBackdrop').classList.contains('open')) closeChooser();
     else if(document.getElementById('promptModalBackdrop').classList.contains('open')) closePrompt();
     else if(openCardId) closeCardModal();
   }
@@ -1713,13 +1908,15 @@ function renderCardModal(){
     <div class="cm-listname">in list <b>${escHtml(l ? l.name : '?')}</b></div>
 
     <div class="cm-section">
-      <div class="cm-section-title">Labels <button class="label-edit-btn" onclick="promptEditLabels()">edit names</button></div>
+      <div class="cm-section-title">Labels</div>
       <div class="label-chips">
-        ${labels.map(lb=>{
-          const on = (c.labelIds||[]).includes(lb.id);
-          return `<span class="label-chip${on?' on':''}" style="background:${escAttr(lb.color)}"
-            onclick="toggleLabel('${c.id}','${lb.id}')">${escHtml(lb.name||'   ')}</span>`;
+        ${(c.labelIds||[]).map(id=>{
+          const lb = labels.find(x=>x.id === id);
+          if(!lb) return '';
+          return `<span class="label-chip on" style="background:${escAttr(lb.color)}; color:${labelTextColor(lb.color)}"
+            onclick="openLabelsPanel()" title="Edit labels">${escHtml(lb.name||'Unnamed')}</span>`;
         }).join('')}
+        <button class="label-add" onclick="openLabelsPanel()" title="Add or edit labels">＋</button>
       </div>
     </div>
 
@@ -1743,19 +1940,18 @@ function renderCardModal(){
     </div>
 
     <div class="cm-section">
-      <div class="cm-section-head">
-        <div class="cm-section-title">Custom Fields</div>
-        <button class="label-edit-btn" onclick="promptEditCustomField()">Edit</button>
+      <div class="cm-section-title">Description</div>
+      <textarea id="cmDesc" style="min-height:70px; resize:vertical;" placeholder="Add a more detailed description..."
+        oninput="debouncedCardUpdate('${c.id}','desc',this.value)">${escHtml(c.desc||'')}</textarea>
+    </div>
+
+    <div class="cm-section">
+      <div class="cf-edit-row">
+        <button class="label-edit-btn" onclick="promptEditCustomField()">Edit fields</button>
       </div>
       <div class="cf-grid">
         ${boardCustomFields().map(f=> customFieldHtml(c, f)).join('')}
       </div>
-    </div>
-
-    <div class="cm-section">
-      <div class="cm-section-title">Description</div>
-      <textarea id="cmDesc" style="min-height:70px; resize:vertical;" placeholder="Add a more detailed description..."
-        oninput="debouncedCardUpdate('${c.id}','desc',this.value)">${escHtml(c.desc||'')}</textarea>
     </div>
 
     <div class="cm-section">
@@ -1929,20 +2125,151 @@ function toggleMember(cardId, memberId){
     : firebase.firestore.FieldValue.arrayUnion(memberId)});
 }
 
-/* Label names are per-board and shared */
-function promptEditLabels(){
+/* ---------------- Labels panel ----------------
+   Labels belong to the board, so creating or renaming one here changes it
+   everywhere it's used. Ticking a box only affects the open card. */
+let labelEditing = null; // label id being edited, or '__new__'
+
+function labelTextColor(bg){
+  // Darkened version of the label's own colour, so text stays legible on every
+  // pastel in the palette without storing a second value per label.
+  return `color-mix(in srgb, ${bg} 45%, #10202e)`;
+}
+
+function openLabelsPanel(){
+  labelEditing = null;
+  const search = document.getElementById('labelSearch');
+  if(search) search.value = '';
+  renderLabelsPanel();
+  document.getElementById('labelsModalBackdrop').classList.add('open');
+}
+function closeLabelsPanel(){
+  labelEditing = null;
+  document.getElementById('labelsModalBackdrop').classList.remove('open');
+}
+document.getElementById('labelsModalBackdrop').addEventListener('click', e=>{
+  if(e.target.id === 'labelsModalBackdrop') closeLabelsPanel();
+});
+
+function renderLabelsPanel(){
+  const wrap = document.getElementById('labelList');
+  if(!wrap) return;
+  const c = openCardId ? cardById(openCardId) : null;
   const labels = boardLabels();
-  const names = labels.map(l=>l.name).join(' / ');
-  openPrompt({
-    title:'Label Names',
-    sub:'Names for the 7 label colors (teal, green, yellow, orange, red, purple, navy), separated by slashes. Leave a slot empty to keep it unnamed.',
-    value:names, okLabel:'Save',
-    onOk: v=>{
-      const parts = v.split('/').map(s=>s.trim());
-      const updated = labels.map((l,i)=>({...l, name: parts[i] || ''}));
-      boardsRef().doc(currentBoardId).update({labels: updated});
-    }
+  const q = (document.getElementById('labelSearch')?.value || '').trim().toLowerCase();
+
+  if(labelEditing === '__new__'){
+    wrap.innerHTML = labelEditorHtml({id:'', name:'', color:LABEL_COLORS[0]}, true);
+    return;
+  }
+
+  const shown = q ? labels.filter(l=>(l.name||'').toLowerCase().includes(q)) : labels;
+  if(!shown.length){
+    wrap.innerHTML = `<div class="lb-empty">${q ? 'No labels match that search.' : 'No labels on this board yet.'}</div>`;
+    return;
+  }
+  wrap.innerHTML = shown.map(l=>{
+    if(l.id === labelEditing) return labelEditorHtml(l, false);
+    const on = c ? (c.labelIds||[]).includes(l.id) : false;
+    return `
+    <div class="lb-row">
+      <input type="checkbox" ${on?'checked':''} ${c?'':'disabled'}
+        onchange="toggleLabelFromPanel('${l.id}')" aria-label="${escAttr(l.name)}">
+      <button class="lb-pill" style="background:${escAttr(l.color)}; color:${labelTextColor(l.color)}"
+        onclick="toggleLabelFromPanel('${l.id}')">${escHtml(l.name || 'Unnamed')}</button>
+      <button class="lb-edit" title="Edit label" onclick="startEditLabel('${l.id}')">✎</button>
+    </div>`;
+  }).join('');
+}
+
+function labelEditorHtml(l, isNew){
+  return `
+  <div class="lb-editor">
+    <input type="text" id="lbName" value="${escAttr(l.name)}" placeholder="Label name"
+      onkeydown="if(event.key==='Enter') saveLabel('${escAttr(l.id)}', ${isNew})">
+    <div class="lb-swatches">
+      ${LABEL_COLORS.map(col=>`
+        <button class="lb-swatch${col===l.color?' on':''}" style="background:${col}"
+          data-color="${col}" onclick="pickLabelColor('${col}')" title="${col}"></button>`).join('')}
+    </div>
+    <div class="lb-editor-actions">
+      ${isNew ? '<span></span>'
+        : `<button class="btn btn-danger btn-sm" onclick="deleteLabel('${escAttr(l.id)}')">Delete</button>`}
+      <span style="display:flex; gap:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="cancelLabelEdit()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="saveLabel('${escAttr(l.id)}', ${isNew})">Save</button>
+      </span>
+    </div>
+  </div>`;
+}
+
+function pickLabelColor(color){
+  document.querySelectorAll('.lb-swatch').forEach(b=>{
+    b.classList.toggle('on', b.dataset.color === color);
   });
+}
+function selectedLabelColor(){
+  const on = document.querySelector('.lb-swatch.on');
+  return on ? on.dataset.color : LABEL_COLORS[0];
+}
+function startEditLabel(id){ labelEditing = id; renderLabelsPanel(); }
+function startCreateLabel(){ labelEditing = '__new__'; renderLabelsPanel(); setTimeout(()=>document.getElementById('lbName')?.focus(), 40); }
+function cancelLabelEdit(){ labelEditing = null; renderLabelsPanel(); }
+
+function persistLabels(labels){
+  return boardsRef().doc(currentBoardId).update({labels})
+    .catch(e=>{ console.error(e); showToast("Couldn't save labels"); });
+}
+async function saveLabel(id, isNew){
+  const name = (document.getElementById('lbName')?.value || '').trim();
+  const color = selectedLabelColor();
+  if(!name){ showToast("Give the label a name"); return; }
+  // boardLabels() may be returning the shared defaults; writing the whole list
+  // back makes this board's own copy before editing it.
+  const labels = boardLabels().map(l=>({...l}));
+  if(isNew){
+    labels.push({id:'lb_' + uid(), name, color});
+  } else {
+    const i = labels.findIndex(l=>l.id === id);
+    if(i === -1) return;
+    labels[i] = {...labels[i], name, color};
+  }
+  labelEditing = null;
+  await persistLabels(labels);
+  renderLabelsPanel();
+  if(openCardId) renderCardModal();
+}
+async function deleteLabel(id){
+  const l = boardLabels().find(x=>x.id === id);
+  if(!l) return;
+  const used = cards.filter(c=>(c.labelIds||[]).includes(id)).length;
+  if(!confirm(used
+    ? `Delete "${l.name}"? It will come off ${used} card${used===1?'':'s'} on this board.`
+    : `Delete "${l.name}"?`)) return;
+  labelEditing = null;
+  await persistLabels(boardLabels().filter(x=>x.id !== id));
+  // Take it off every card that had it, so no card keeps a dangling reference.
+  const batch = db.batch();
+  cards.filter(c=>(c.labelIds||[]).includes(id)).forEach(c=>{
+    batch.update(cardsRef(currentBoardId).doc(c.id), {
+      labelIds: firebase.firestore.FieldValue.arrayRemove(id)
+    });
+  });
+  try{ await batch.commit(); }catch(e){ console.error(e); }
+  renderLabelsPanel();
+  if(openCardId) renderCardModal();
+}
+function toggleLabelFromPanel(labelId){
+  if(!openCardId) return;
+  toggleLabel(openCardId, labelId);
+  // The snapshot will redraw the card; repaint the panel now so the tick
+  // responds immediately rather than after the round trip.
+  const c = cardById(openCardId);
+  if(c){
+    const on = (c.labelIds||[]).includes(labelId);
+    c.labelIds = on ? (c.labelIds||[]).filter(x=>x!==labelId) : [...(c.labelIds||[]), labelId];
+  }
+  renderLabelsPanel();
 }
 
 /* Checklist — whole-array update (card-level granularity is fine here) */
