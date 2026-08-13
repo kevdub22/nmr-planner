@@ -1,0 +1,69 @@
+rules_version = '2';
+
+/* NMR Digital Portal — Firestore security rules.
+   Covers both modules against the shared nmr-digital-estimates project:
+   the Estimate Builder (estimates, library, settings, presence) and the
+   Project Planner (boards + subcollections, members).
+
+   Access is gated on a signed-in account whose address is on the company
+   domain. The web API key in each app's page source is public by design and
+   is NOT a secret — these rules, not the key, are what keep the data private.
+
+   TWO THINGS MUST BE TRUE FOR THESE RULES TO HOLD:
+
+   1. Both apps must sign users in BEFORE these rules go live, or every read
+      is denied and both apps break.
+
+   2. Self-signup must be OFF in the Firebase console
+      (Authentication → Settings → User actions → untick "Enable create
+      (sign-up)"). Accounts here are created by an admin, so nobody should be
+      able to register themselves. Left on, anyone holding the public API key
+      could call createUserWithEmailAndPassword with a made-up
+      name@nmrevents.com address and satisfy the domain test below.
+
+   There is deliberately no email_verified check: accounts created from the
+   Firebase console start unverified, so requiring it would lock out the very
+   people it is meant to admit. With self-signup disabled, the fact that an
+   account exists at all is the real control. */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // A signed-in account on the NMR domain. The regex is anchored so an
+    // address like "someone@nmrevents.com.attacker.test" cannot match, and
+    // lower() keeps a capitalized address from being rejected.
+    function isStaff() {
+      return request.auth != null
+        && request.auth.token.email.lower().matches('^[^@]+@nmrevents[.]com$');
+    }
+
+    /* ---- Estimate Builder ---- */
+    match /estimates/{estimateId} { allow read, write: if isStaff(); }
+    match /library/{itemId}       { allow read, write: if isStaff(); }
+    match /settings/{settingsId}  { allow read, write: if isStaff(); }
+    match /presence/{sessionId}   { allow read, write: if isStaff(); }
+
+    /* ---- Project Planner ---- */
+    // Lists and cards live under each board, so the recursive match covers
+    // them on the same terms as the board itself.
+    match /boards/{boardId} {
+      allow read, write: if isStaff();
+      match /{subCollection=**} { allow read, write: if isStaff(); }
+    }
+
+    // A member doc is the signed-in person's own profile, keyed by their uid.
+    // Anyone on staff can read the roster (needed to render avatars and
+    // assignees) and remove a stale entry, but only the account itself can
+    // create or edit its own profile — so nobody can rename a colleague.
+    match /members/{memberId} {
+      allow read, delete: if isStaff();
+      allow create, update: if isStaff() && request.auth.uid == memberId;
+    }
+
+    // Anything not named above is denied outright, so a collection added
+    // later fails closed rather than being world-writable by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

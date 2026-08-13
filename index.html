@@ -461,7 +461,83 @@
   }
   .roster-row:last-child{border-bottom:none;}
   .roster-row input{flex:1;}
-  .roster-add{display:flex; gap:6px; margin-top:12px;}
+
+  /* Sign-in gate — covers the app until a staff account is confirmed, so no
+     board data is ever painted for a signed-out visitor. */
+  .gate{
+    position:fixed; inset:0; z-index:3000;
+    background:var(--navy);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  .gate[hidden]{display:none;}
+  .gate-box{
+    background:var(--white); border-radius:12px;
+    padding:34px 36px; max-width:400px; width:100%;
+    box-shadow:0 24px 60px rgba(0,0,0,0.35);
+    text-align:center;
+  }
+  .gate-logo{width:170px; height:auto; margin:0 auto 22px auto; display:block;}
+  .gate-box h2{
+    margin:0 0 6px 0; font-size:19px; color:var(--navy);
+    font-family:'Instrument Sans', var(--font);
+  }
+  .gate-box p{
+    margin:0 0 22px 0; font-size:13px; color:var(--gray-text); line-height:1.55;
+  }
+  .gate-btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:9px;
+    width:100%; padding:11px 16px; border-radius:7px;
+    border:1px solid var(--gray-border); background:var(--white);
+    font-size:14px; font-weight:700; color:#1c2431;
+    cursor:pointer; font-family:var(--font);
+  }
+  .gate-btn{background:var(--navy); color:var(--white); border-color:var(--navy);}
+  .gate-btn:hover{background:var(--navy2); border-color:var(--navy2);}
+  .gate-btn:disabled{opacity:0.6; cursor:default;}
+  .gate-form{display:flex; flex-direction:column; gap:9px; text-align:left;}
+  .gate-form input{
+    width:100%; padding:10px 11px;
+    border:1px solid var(--gray-border); border-radius:6px;
+    font-size:14px; font-family:var(--font); background:var(--white); color:#1c2431;
+  }
+  .gate-form input:focus{
+    outline:none; border-color:var(--teal);
+    box-shadow:0 0 0 3px rgba(71,178,204,0.15);
+  }
+  .gate-ok{
+    margin-top:16px; font-size:12.5px; line-height:1.5;
+    color:var(--green); background:#e4f3ec;
+    border:1px solid #bfe3d2; border-radius:7px; padding:10px 12px; text-align:left;
+  }
+  .gate-ok[hidden]{display:none;}
+  .gate-err{
+    margin-top:16px; font-size:12.5px; line-height:1.5;
+    color:var(--red); background:#fdf2f1;
+    border:1px solid #f0d3d0; border-radius:7px; padding:10px 12px;
+    text-align:left;
+  }
+  .gate-err[hidden]{display:none;}
+  .gate-link{
+    background:none; border:none; padding:0; margin-top:12px;
+    font-size:12.5px; font-weight:700; color:var(--teal);
+    cursor:pointer; font-family:inherit;
+  }
+  .gate-link:hover{text-decoration:underline;}
+  .gate-link[hidden]{display:none;}
+
+  .me-box{
+    padding:0 20px 12px 20px;
+    font-size:11.5px; color:rgba(255,255,255,0.55);
+    line-height:1.5;
+  }
+  .me-box .me-name{color:var(--white); font-weight:700; font-size:12.5px;}
+  .me-signout{
+    background:none; border:none; padding:2px 0 0 0;
+    font-size:11.5px; font-weight:700; color:var(--teal);
+    cursor:pointer; font-family:inherit;
+  }
+  .me-signout:hover{text-decoration:underline;}
 
   .toast{
     position:fixed; bottom:24px; right:24px;
@@ -551,6 +627,7 @@
         <div class="brand-line1">NMR Digital</div>
         <div class="brand-line2">Project Planner</div>
       </div>
+      <div class="me-box" id="meBox"></div>
       <div class="sidebar-footer">Boards sync live for the whole team.</div>
     </nav>
   </div>
@@ -594,16 +671,12 @@
       <div class="toolbar">
         <div>
           <h1>Team Members</h1>
-          <div class="page-sub" style="margin-bottom:0;">The shared roster used for card assignments and comments across all boards.</div>
+          <div class="page-sub" style="margin-bottom:0;">Everyone who has signed in to the portal. Names come from Google, so there's nothing to type here.</div>
         </div>
         <div class="toolbar-actions" id="membersBackBtn"></div>
       </div>
       <div class="card" style="max-width:560px;">
         <div id="rosterList"></div>
-        <div class="roster-add">
-          <input type="text" id="newMemberName" placeholder="Full name (e.g. Kevin Wright)" onkeydown="if(event.key==='Enter') addMember()">
-          <button class="btn btn-primary btn-sm" onclick="addMember()">Add</button>
-        </div>
       </div>
     </div>
 
@@ -628,9 +701,52 @@
   </div>
 </div>
 
+<div class="gate" id="authGate">
+  <div class="gate-box">
+    <svg class="gate-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 301.05 177">
+      <g>
+        <path fill="#081f42" d="M123.17,90.27V31.48h-24.18v46.19c7.56,4.67,15.72,8.85,24.18,12.6Z"/>
+        <path fill="#081f42" d="M96,75.78l-10.37-44.29h-27.91v1.12c6.59,17.54,20.62,31.74,38.26,43.16h.02Z"/>
+        <path fill="#081f42" d="M85.36,82.45l10.3,40.83h27.52v-25.11c-14.76-4.89-27.24-10.2-37.82-15.73v.02h0Z"/>
+        <path fill="#081f42" d="M57.74,64.47v58.81h23.4v-43.11c-9.31-5.16-17.01-10.44-23.4-15.7Z"/>
+      </g>
+      <g>
+        <path fill="#081f42" d="M154.79,102.12v-45.7h.26l8.16,48.25c8.1,2.35,16.11,4.41,23.77,6.18l9.21-54.42h.26v56.51c8.82,1.86,17.01,3.32,24.16,4.48V31.49h-36.51l-8.36,56.19h-.26l-7.59-56.19h-37.29v61.96c7.93,3.24,16.07,6.11,24.18,8.67h.02-.01Z"/>
+        <path fill="#081f42" d="M130.63,100.54v22.75h24.18v-16.23c-8.62-2.04-16.67-4.22-24.18-6.52Z"/>
+        <path fill="#081f42" d="M163.97,109.14l2.38,14.15h18.51l1.67-9.81c-7.9-1.35-15.43-2.79-22.56-4.34Z"/>
+        <path fill="#081f42" d="M196.46,115.1v8.19h24.16v-4.94c-8.41-.99-16.47-2.08-24.16-3.25Z"/>
+      </g>
+      <path fill="#081f42" d="M292.49,119.3c-.65-1.28-1.16-5.65-1.16-10.8v-7.58c0-5.4-.14-11.58-2.43-15.68-2.43-4.38-7.08-6.95-12.21-7.32v-.26c9.01-1.29,15.31-7.46,15.31-22.12s-7.58-24.04-25.34-24.04h-38.57v87.08c12.86,1.89,20.94,2.57,20.94,2.57-7.22-.58-14.18-1.23-20.94-1.96v4.1h25.71v-36.13h4.75c4.5,0,7.07,1.41,7.07,9.26,0,4.51.39,9.13.39,13.64s.26,11.19,1.92,13.25h27.26v-1.28c-1.16-.51-2.06-1.41-2.69-2.71l-.02-.03h0ZM257.52,70.2h-3.73v-20.19h2.96c5.79,0,9.52,1.8,9.52,9.38,0,8.87-4.5,10.8-8.73,10.8l-.02.02h0Z"/>
+      <path fill="#44b1ca" d="M30.53,9H3.95S-4.53,100.54,225.88,119.1c0,0-193.89-16.48-195.37-110.1,0,0,.02,0,.02,0Z"/>
+      <g>
+        <path fill="#44b1ca" d="M57.41,130.95h32.3v5.18h-26.34v11.65h25.56v5.18h-25.56v12.99h26.9v5.18h-32.86v-40.18.02-.02Z"/>
+        <path fill="#44b1ca" d="M127.53,130.95h6.42l-17.62,40.18h-6.37l-17.9-40.18h6.76l14.46,33.99,14.23-33.99h.02Z"/>
+        <path fill="#44b1ca" d="M137.66,130.95h32.3v5.18h-26.34v11.65h25.56v5.18h-25.56v12.99h26.9v5.18h-32.86v-40.18.02-.02Z"/>
+        <path fill="#44b1ca" d="M183.58,139.17h-.12v31.96h-5.96v-40.18h6.91l25.83,31.96h.12v-31.96h5.96v40.18h-6.91l-25.83-31.96h0Z"/>
+        <path fill="#44b1ca" d="M236.16,136.14h-15.21v-5.18h36.35v5.18h-15.19v35.01h-5.96v-35.01h.01Z"/>
+        <path fill="#44b1ca" d="M264.24,157.92c.12,7.2,6.86,9.06,12.94,9.06s10.86-2.42,10.86-6.81c0-3.66-2.88-5.18-7.49-5.96l-9.13-1.52c-4.78-.78-11.94-2.71-11.94-10.52,0-7.32,5.79-12.21,16.09-12.21,8.05,0,16.55,2.93,17.11,12.6h-5.98c-.51-3.15-2.3-7.42-11.94-7.42-4.39,0-9.35,1.86-9.35,6.59,0,2.47,1.63,4.44,6.59,5.3l9.86,1.69c3.15.56,12.11,2.08,12.11,10.3,0,10.25-9.18,13.16-17.28,13.16-9.06,0-18.46-3.15-18.46-14.23h5.96l.03-.02h.02Z"/>
+      </g>
+    </svg>
+    <h2>NMR Digital Portal</h2>
+    <p id="gateSub">Sign in with your NMR work email to continue.</p>
+    <form class="gate-form" onsubmit="event.preventDefault(); signIn();">
+      <input type="email" id="gateEmail" placeholder="you@nmrevents.com" autocomplete="username" required>
+      <input type="password" id="gatePassword" placeholder="Password" autocomplete="current-password" required>
+      <button class="gate-btn" id="gateBtn" type="submit">
+        <span id="gateBtnLabel">Sign in</span>
+      </button>
+    </form>
+    <div class="gate-err" id="gateErr" hidden></div>
+    <div class="gate-ok" id="gateOk" hidden></div>
+    <button class="gate-link" id="gateReset" onclick="sendReset()">Forgot your password?</button>
+    <button class="gate-link" id="gateRetry" hidden onclick="signOutNow()">Use a different account</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore-compat.js"></script>
 
 <script>
@@ -648,6 +764,18 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const auth = firebase.auth();
+
+/* Only accounts on this domain may read or write. The same check is enforced
+   server-side in firestore.rules — this copy exists to give a clear message
+   instead of a wall of permission-denied errors.
+
+   No emailVerified check: accounts are created by an admin in the Firebase
+   console and start unverified, so requiring it would lock out everyone. */
+const ALLOWED_DOMAIN = 'nmrevents.com';
+function isStaffUser(user){
+  return !!user && (user.email || '').toLowerCase().endsWith('@' + ALLOWED_DOMAIN);
+}
 
 /* ---------------- State ---------------- */
 let boards = [];
@@ -682,8 +810,8 @@ function setCollapsed(listId, on){
   if(on) c[listId] = true; else delete c[listId];
   localStorage.setItem('plannerCollapsed', JSON.stringify(c));
 }
-function myMemberId(){ return localStorage.getItem('plannerMe') || ''; }
-function setMyMemberId(id){ localStorage.setItem('plannerMe', id); }
+/* Identity is the signed-in account; member docs are keyed by its uid. */
+function myMemberId(){ return currentUser ? currentUser.uid : ''; }
 
 /* ---------------- Firestore listeners ---------------- */
 function boardsRef(){ return db.collection('boards'); }
@@ -1331,7 +1459,7 @@ function renderCardModal(){
           const on = (c.memberIds||[]).includes(m.id);
           return `<span class="member-chip${on?' on':''}" onclick="toggleMember('${c.id}','${m.id}')">
             <span class="avatar" style="background:${escAttr(m.color)}; margin-left:0;">${escAttr(m.initials)}</span>${escHtml(m.name)}</span>`;
-        }).join('') : `<span style="font-size:12.5px; color:var(--gray-text);">No team members yet — add them under <b>Team Members</b> in the sidebar.</span>`}
+        }).join('') : `<span style="font-size:12.5px; color:var(--gray-text);">Nobody has signed in yet — teammates appear here once they open the portal.</span>`}
       </div>
     </div>
 
@@ -1372,9 +1500,8 @@ function renderCardModal(){
         </div>`;
       }).join('')}
       <div class="comment-add">
-        <select id="commentAuthor" onchange="setMyMemberId(this.value)">
-          ${members.length ? members.map(m=>`<option value="${m.id}" ${m.id===me?'selected':''}>${escHtml(m.name)}</option>`).join('') : '<option value="">Add members first</option>'}
-        </select>
+        ${(() => { const m = memberById(me);
+          return `<span class="avatar lg" style="background:${escAttr(m ? m.color : '#8a93a0')}; margin-left:0;" title="${escAttr(m ? m.name : '')}">${escAttr(m ? m.initials : '?')}</span>`; })()}
         <textarea id="newComment" placeholder="Write a comment..." onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); addComment('${c.id}');}"></textarea>
         <button class="btn btn-primary btn-sm" onclick="addComment('${c.id}')">Post</button>
       </div>
@@ -1447,12 +1574,10 @@ function addCheckItem(cardId){
 /* Comments — arrayUnion/arrayRemove so concurrent posts never clobber */
 function addComment(cardId){
   const textEl = document.getElementById('newComment');
-  const authorEl = document.getElementById('commentAuthor');
   const text = (textEl?.value||'').trim();
-  const authorId = authorEl?.value || '';
+  const authorId = myMemberId();
   if(!text) return;
-  if(!authorId){ showToast("Add yourself under Team Members first"); return; }
-  setMyMemberId(authorId);
+  if(!authorId){ showToast("You need to be signed in to comment"); return; }
   cardUpdate(cardId, {comments: firebase.firestore.FieldValue.arrayUnion({
     id: uid(), authorId, text, at: Date.now()
   })});
@@ -1485,41 +1610,47 @@ function initialsOf(name){
 function renderRoster(){
   const wrap = document.getElementById('rosterList');
   if(!members.length){
-    wrap.innerHTML = `<div class="empty-state" style="padding:24px;"><div class="big">No members yet</div>Add your teammates below — they'll be available on every board.</div>`;
+    wrap.innerHTML = `<div class="empty-state" style="padding:24px;"><div class="big">Nobody has signed in yet</div>Teammates appear here automatically the first time they open the portal.</div>`;
     return;
   }
-  wrap.innerHTML = members.map(m=>`
+  const me = myMemberId();
+  wrap.innerHTML = members.map(m=>{
+    const isMe = m.id === me;
+    return `
     <div class="roster-row">
       <span class="avatar lg" style="background:${escAttr(m.color)}; margin-left:0;">${escAttr(m.initials)}</span>
-      <input type="text" value="${escAttr(m.name)}" onblur="renameMember('${m.id}', this.value)" onkeydown="if(event.key==='Enter') this.blur()">
-      <button class="row-remove" title="Remove member" onclick="removeMember('${m.id}')">✕</button>
-    </div>
-  `).join('');
+      <div style="flex:1; min-width:0;">
+        ${isMe
+          ? `<input type="text" value="${escAttr(m.name)}" title="Your display name"
+                 onblur="renameSelf(this.value)" onkeydown="if(event.key==='Enter') this.blur()">`
+          : `<div style="font-size:13.5px; font-weight:600;">${escHtml(m.name)}</div>`}
+        <div style="font-size:11.5px; color:var(--gray-text); margin-top:2px;">${escHtml(m.email||'')}${isMe ? ' · you' : ''}</div>
+      </div>
+      ${isMe ? '' : `<button class="row-remove" title="Remove member" onclick="removeMember('${m.id}')">✕</button>`}
+    </div>`;
+  }).join('');
 }
-async function addMember(){
-  const input = document.getElementById('newMemberName');
-  const name = (input?.value||'').trim();
-  if(!name) return;
-  const id = uid();
-  const color = MEMBER_COLORS[members.length % MEMBER_COLORS.length];
-  await db.collection('members').doc(id).set({name, initials: initialsOf(name), color});
-  input.value = '';
-  input.focus();
-  if(!myMemberId()) setMyMemberId(id);
-  showToast(`${name} added`);
-}
-function renameMember(id, name){
+/* Only your own name is editable — the rules reject writing to anyone else's
+   member doc, so a colleague's row is rendered as plain text. */
+function renameSelf(name){
   name = (name||'').trim();
-  const m = memberById(id);
+  const me = myMemberId();
+  const m = memberById(me);
   if(!m) return;
   if(!name || name === m.name){ renderRoster(); return; }
-  db.collection('members').doc(id).update({name, initials: initialsOf(name)});
+  db.collection('members').doc(me).update({name, initials: initialsOf(name)}).catch(e=>{
+    console.error(e); showToast("Couldn't save your name");
+  });
 }
+/* Removal stays for clearing out someone who has left — they reappear if
+   they sign in again. */
 function removeMember(id){
   const m = memberById(id);
   if(!m) return;
-  if(!confirm(`Remove ${m.name} from the roster? Their card assignments and comments stay but show as unassigned.`)) return;
-  db.collection('members').doc(id).delete();
+  if(!confirm(`Remove ${m.name} from the roster? Their card assignments and comments stay, but show as unassigned until they sign in again.`)) return;
+  db.collection('members').doc(id).delete().catch(e=>{
+    console.error(e); showToast("Couldn't remove member");
+  });
 }
 
 /* ---------------- Mobile nav ---------------- */
@@ -1555,10 +1686,174 @@ function showToast(msg){
   toastTimer = setTimeout(()=> t.classList.remove('show'), 2200);
 }
 
-/* ---------------- Boot ---------------- */
-watchGlobal();
-const hash = location.hash.match(/^#b\/(.+)$/);
-if(hash) openBoard(hash[1]);
+/* ---------------- Auth ---------------- */
+let currentUser = null;
+let started = false;
+
+function gateEl(id){ return document.getElementById(id); }
+function showGateError(msg, offerSwitch){
+  const err = gateEl('gateErr');
+  err.textContent = msg;
+  err.hidden = false;
+  gateEl('gateOk').hidden = true;
+  gateEl('gateRetry').hidden = !offerSwitch;
+}
+function showGateOk(msg){
+  const ok = gateEl('gateOk');
+  ok.textContent = msg;
+  ok.hidden = false;
+  gateEl('gateErr').hidden = true;
+}
+function clearGateError(){
+  gateEl('gateErr').hidden = true;
+  gateEl('gateOk').hidden = true;
+  gateEl('gateRetry').hidden = true;
+}
+
+/* Auth errors are deliberately vague about which half was wrong: saying
+   "no such account" would let anyone probe which addresses exist. */
+function gateErrorMessage(e){
+  switch(e.code){
+    case 'auth/invalid-email':
+      return "That doesn't look like a valid email address.";
+    case 'auth/user-disabled':
+      return "That account has been disabled. Ask whoever manages the portal to re-enable it.";
+    case 'auth/too-many-requests':
+      return "Too many attempts. Wait a few minutes and try again, or reset your password.";
+    case 'auth/network-request-failed':
+      return "Couldn't reach the server. Check your connection and try again.";
+    case 'auth/configuration-not-found':
+      return "Firebase Authentication hasn't been set up on this project yet. Open the Firebase console → Authentication → Get started, then enable Email/Password.";
+    case 'auth/operation-not-allowed':
+      return "Email sign-in isn't enabled on the Firebase project yet. Turn it on under Authentication → Sign-in method.";
+    case 'auth/unauthorized-domain':
+      return "This site's domain isn't authorized in Firebase Authentication. Add it under Authentication → Settings → Authorized domains.";
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return "That email and password don't match an account.";
+    default:
+      return "Couldn't sign in: " + (e.message || e.code || 'unknown error');
+  }
+}
+
+async function signIn(){
+  clearGateError();
+  const email = (gateEl('gateEmail').value || '').trim();
+  const password = gateEl('gatePassword').value || '';
+  if(!email || !password) return;
+  const btn = gateEl('gateBtn');
+  btn.disabled = true;
+  gateEl('gateBtnLabel').textContent = 'Signing in…';
+  try{
+    await auth.signInWithEmailAndPassword(email, password);
+    gateEl('gatePassword').value = '';
+  }catch(e){
+    showGateError(gateErrorMessage(e));
+    if(e.code !== 'auth/wrong-password' && e.code !== 'auth/invalid-credential') console.error(e);
+  }finally{
+    btn.disabled = false;
+    gateEl('gateBtnLabel').textContent = 'Sign in';
+  }
+}
+
+async function sendReset(){
+  const email = (gateEl('gateEmail').value || '').trim();
+  if(!email){
+    showGateError("Type your email address above first, then click Forgot your password?");
+    return;
+  }
+  try{
+    await auth.sendPasswordResetEmail(email);
+  }catch(e){
+    // Anything other than a malformed address is swallowed on purpose, so a
+    // failure can't be used to discover which addresses have accounts.
+    if(e.code === 'auth/invalid-email'){
+      showGateError("That doesn't look like a valid email address.");
+      return;
+    }
+    console.error(e);
+  }
+  showGateOk(`If an account exists for ${email}, a reset link is on its way.`);
+}
+
+function signOutNow(){
+  auth.signOut().catch(e=>console.error(e));
+}
+
+function renderMe(){
+  const box = document.getElementById('meBox');
+  if(!box) return;
+  if(!currentUser){ box.innerHTML = ''; return; }
+  box.innerHTML = `
+    <div class="me-name">${escHtml(currentUser.displayName || currentUser.email)}</div>
+    <button class="me-signout" onclick="signOutNow()">Sign out</button>`;
+}
+
+/* The signed-in account is the source of identity: their member doc is keyed
+   by uid and refreshed on each sign-in, so the roster is real people rather
+   than hand-typed initials. */
+async function upsertMyMember(user){
+  const ref = db.collection('members').doc(user.uid);
+  const snap = await ref.get();
+  const payload = {email: user.email || ''};
+  if(!snap.exists){
+    // Console-created accounts have no display name, so the first guess comes
+    // from the address ("kevin.wright@…" → "Kevin Wright"). Only set on
+    // create — after that the person's own edit in Team Members wins.
+    const name = user.displayName || nameFromEmail(user.email || '');
+    payload.name = name;
+    payload.initials = initialsOf(name);
+    // Color is derived from the uid so an avatar keeps its hue for good.
+    payload.color = MEMBER_COLORS[Math.abs(hashCode(user.uid)) % MEMBER_COLORS.length];
+  }
+  await ref.set(payload, {merge:true});
+}
+function nameFromEmail(email){
+  const local = (email || '').split('@')[0];
+  const words = local.split(/[._\-+]+/).filter(Boolean);
+  if(!words.length) return local || 'Unnamed';
+  return words.map(w=> w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+function hashCode(s){
+  let h = 0;
+  for(let i=0; i<s.length; i++){ h = ((h<<5) - h + s.charCodeAt(i)) | 0; }
+  return h;
+}
+
+auth.onAuthStateChanged(async user=>{
+  if(user && !isStaffUser(user)){
+    const why = `${user.email} isn't an @${ALLOWED_DOMAIN} account. The portal is limited to NMR staff.`;
+    currentUser = null;
+    renderMe();
+    document.getElementById('authGate').hidden = false;
+    showGateError(why, true);
+    return;
+  }
+
+  currentUser = user || null;
+  renderMe();
+
+  if(!user){
+    document.getElementById('authGate').hidden = false;
+    return;
+  }
+
+  clearGateError();
+  document.getElementById('authGate').hidden = true;
+
+  // Listeners are attached once; a later token refresh fires this again and
+  // must not stack a second set of snapshot subscriptions.
+  if(started) return;
+  started = true;
+
+  try{ await upsertMyMember(user); }
+  catch(e){ console.error(e); }
+
+  watchGlobal();
+  const hash = location.hash.match(/^#b\/(.+)$/);
+  if(hash) openBoard(hash[1]);
+});
 </script>
 </body>
 </html>
