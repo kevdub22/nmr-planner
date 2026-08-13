@@ -1104,9 +1104,10 @@ const MEMBER_COLORS = ['#47b2cc','#1e8a5f','#e07b39','#8e6bb8','#c0392b','#17305
    Boards created before this existed fall back to these defaults. */
 const DEFAULT_CUSTOM_FIELDS = [
   {id:'cf_status', name:'Status', type:'dropdown', options:[
-    {id:'cfo_active', label:'Active',   color:'#b7e4c7'},
-    {id:'cfo_hold',   label:'On Hold',  color:'#fde2b0'},
-    {id:'cfo_done',   label:'Complete', color:'#cfd8e3'}
+    {id:'cfo_active',    label:'Active',    color:'#b7e4c7'},
+    {id:'cfo_potential', label:'Potential', color:'#e2d5f5'},
+    {id:'cfo_limbo',     label:'Limbo',     color:'#f2e08a'},
+    {id:'cfo_dead',      label:'Dead',      color:'#f4b9a8'}
   ]},
   {id:'cf_sales', name:'Salesperson', type:'dropdown', options:[
     'Alex Barrata','Charlie Corsentino','Chip Demilio','Dean Demetris','Ed Conrad',
