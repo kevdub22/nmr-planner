@@ -412,6 +412,23 @@
   .pbadge.due-over{background:#fdeae8; color:var(--red);}
   .pbadge.due-soon{background:#fdf0d5; color:#8a6100;}
   .pbadge.check-done{background:#e4f3ec; color:var(--green);}
+  /* Custom field values get their own labeled row each, rather than folding
+     into the badge row with everything else — a bare "Active" or "Eric
+     Skoloda" pill means nothing out of context the way a 🗓 or ☑ icon does. */
+  .pcard-fields{display:flex; flex-direction:column; gap:3px;}
+  .pcard-field-row{display:flex; align-items:center; gap:6px; min-width:0;}
+  .pcf-name{
+    font-size:10px; font-weight:700; color:var(--gray-text);
+    text-transform:uppercase; letter-spacing:0.3px;
+    flex-shrink:0;
+  }
+  .pcf-val{
+    font-size:10.5px; font-weight:700; color:var(--gray-text);
+    background:rgba(8,31,66,0.06);
+    border-radius:4px; padding:2px 6px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;
+  }
+  .pcf-val.check-done{background:#e4f3ec; color:var(--green);}
   .pcard-foot{display:flex; align-items:center; justify-content:space-between;}
   .avatars{display:flex;}
   .avatar{
@@ -704,6 +721,19 @@
   }
   .lb-edit:hover{background:var(--gray-bg); color:var(--navy);}
   .lb-create{width:100%; justify-content:center;}
+
+  /* Salespeople panel — same shell as Labels (modal-labels), simpler rows
+     since there's no color to pick, just a name. */
+  #salesList{max-height:46vh; overflow-y:auto; margin-bottom:12px;}
+  .sp-row{
+    display:flex; align-items:center; gap:8px;
+    padding:6px 2px; border-bottom:1px solid var(--gray-bg);
+  }
+  .sp-row:last-child{border-bottom:none;}
+  .sp-row input[type=text]{flex:1; padding:6px 8px; font-size:13px;}
+  .sales-add{display:flex; gap:6px;}
+  .sales-add input{flex:1;}
+  .sp-empty{font-size:12.5px; color:var(--gray-text); padding:10px 2px;}
   .lb-editor{
     border:1px solid var(--gray-border); border-radius:8px;
     padding:12px; margin-bottom:10px; background:#fbfcfd;
@@ -1047,6 +1077,21 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="salesModalBackdrop">
+  <div class="modal modal-labels" role="dialog" aria-modal="true" aria-labelledby="salesTitle">
+    <div class="lb-head">
+      <h3 id="salesTitle">Salespeople</h3>
+      <button class="lb-close" onclick="closeSalesPanel()" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-sub" style="margin-bottom:14px;">Shared across every board — a change here updates the Salesperson dropdown everywhere.</div>
+    <div id="salesList"></div>
+    <div class="sales-add">
+      <input type="text" id="newSalesName" placeholder="Add a salesperson..." onkeydown="if(event.key==='Enter') addSalesperson()">
+      <button class="btn btn-primary btn-sm" onclick="addSalesperson()">Add</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="chooserModalBackdrop">
   <div class="modal" role="dialog" aria-modal="true">
     <h3 id="chooserTitle"></h3>
@@ -1173,11 +1218,10 @@ const DEFAULT_CUSTOM_FIELDS = [
     {id:'cfo_limbo',     label:'Limbo',     color:'#f2e08a'},
     {id:'cfo_dead',      label:'Dead',      color:'#f4b9a8'}
   ]},
-  {id:'cf_sales', name:'Salesperson', type:'dropdown', options:[
-    'Alex Barrata','Charlie Corsentino','Chip Demilio','Dean Demetris','Ed Conrad',
-    'Eric Skoloda','Jonathan Evans','Matt Marble','Connor McManimon','Anthony Meduri III',
-    'Mike Meduri','Jake Miller','Kyle Morris','Andy Muller','Jeremy Sherry','Staging'
-  ].map(n=>({id:'cfo_' + n.toLowerCase().replace(/[^a-z0-9]+/g,'_'), label:n, color:''}))},
+  // Options are always overridden live from the shared `salespeople` roster
+  // (see boardCustomFields()) — this empty array only matters for a brand-new
+  // board before that roster has loaded once.
+  {id:'cf_sales', name:'Salesperson', type:'dropdown', options:[]},
   {id:'cf_nmrest',     name:'NMR Estimate',       type:'text'},
   {id:'cf_hardcost',   name:'Hard Cost Estimate', type:'text'},
   {id:'cf_website',    name:'Website',            type:'text'},
@@ -1533,6 +1577,35 @@ function cardsInList(listId){
 
 const ARCHIVE_REASON_LABEL = {billing:'Sent to Billing', completed:'Completed', manual:'Archived'};
 
+/* Salespeople are a company-wide roster, not a per-board list — every board
+   must show the identical set, so unlike labels or other dropdown options
+   this one lives in its own shared document rather than under each board. */
+const DEFAULT_SALESPEOPLE = [
+  'Alex Barrata','Charlie Corsentino','Chip Demilio','Dean Demetris','Ed Conrad',
+  'Eric Skoloda','Jonathan Evans','Matt Marble','Connor McManimon','Anthony Meduri III',
+  'Mike Meduri','Jake Miller','Kyle Morris','Andy Muller','Jeremy Sherry','Staging'
+];
+let salespeople = []; // [{id, label}] — live from settings/salespeople
+let salespeopleLoaded = false;
+
+function watchSalespeople(){
+  db.collection('settings').doc('salespeople').onSnapshot(async snap=>{
+    if(!snap.exists){
+      // Only seed once, and only after confirming absence server-side — two
+      // clients racing here just overwrite the same doc harmlessly.
+      if(salespeopleLoaded) return;
+      const seeded = DEFAULT_SALESPEOPLE.map(name=>({id:'sp_' + uid(), label:name}));
+      try{ await db.collection('settings').doc('salespeople').set({options: seeded}); }
+      catch(e){ console.error(e); }
+      return; // onSnapshot fires again once the write lands
+    }
+    salespeopleLoaded = true;
+    salespeople = (snap.data().options || []).slice();
+    if(currentView === 'board') scheduleBoardRender();
+    if(openCardId) renderCardModal();
+  }, err=>console.error(err));
+}
+
 function fmtShortDate(d){
   if(!d) return '';
   const [y,m,day] = d.split('-').map(Number);
@@ -1560,7 +1633,15 @@ function boardLabels(){
 }
 function boardCustomFields(){
   const b = boardById(currentBoardId);
-  return (b && Array.isArray(b.customFields) && b.customFields.length) ? b.customFields : DEFAULT_CUSTOM_FIELDS;
+  const base = (b && Array.isArray(b.customFields) && b.customFields.length) ? b.customFields : DEFAULT_CUSTOM_FIELDS;
+  // Salesperson always reads from the shared roster, never from whatever a
+  // board's own stored copy happened to have — that's what keeps every board
+  // showing the identical list without a one-time migration each time someone
+  // edits it, and fixes boards (like ones customized before this existed)
+  // whose own stored copy had no options at all.
+  return base.map(f => f.id === 'cf_sales'
+    ? {...f, options: salespeople.map(s=>({id:s.id, label:s.label, color:''}))}
+    : f);
 }
 
 function cardFrontHtml(c){
@@ -1585,8 +1666,10 @@ function cardFrontHtml(c){
   const comments = c.comments || [];
   if(comments.length) badges.push(`<span class="pbadge">💬 ${comments.length}</span>`);
 
-  // Custom fields worth seeing without opening the card: a chosen dropdown
-  // value carries its own tint, and a ticked checkbox shows as its own name.
+  // Custom fields worth seeing without opening the card get their own row
+  // each, labeled with the field's name — unlike the icon badges above, a
+  // bare value like "Active" or "Eric Skoloda" means nothing without it.
+  const fieldRows = [];
   const cfVals = c.fields || {};
   boardCustomFields().forEach(f=>{
     const v = cfVals[f.id];
@@ -1595,9 +1678,9 @@ function cardFrontHtml(c){
       const opt = (f.options||[]).find(o=>o.id === v);
       if(!opt) return;
       const style = opt.color ? ` style="background:${escAttr(opt.color)}; color:#1c2431;"` : '';
-      badges.push(`<span class="pbadge"${style} title="${escAttr(f.name)}">${escHtml(opt.label)}</span>`);
+      fieldRows.push(`<div class="pcard-field-row"><span class="pcf-name">${escHtml(f.name)}</span><span class="pcf-val"${style}>${escHtml(opt.label)}</span></div>`);
     } else if(f.type === 'checkbox'){
-      badges.push(`<span class="pbadge check-done" title="${escAttr(f.name)}">✓ ${escHtml(f.name.replace(/[?"]/g,''))}</span>`);
+      fieldRows.push(`<div class="pcard-field-row"><span class="pcf-name">${escHtml(f.name.replace(/[?"]/g,''))}</span><span class="pcf-val check-done">✓ Yes</span></div>`);
     }
   });
 
@@ -1613,6 +1696,7 @@ function cardFrontHtml(c){
     ${labelsHtml}
     <div class="pcard-title">${escHtml(c.title||'Untitled')}</div>
     ${badges.length ? `<div class="pcard-badges">${badges.join('')}</div>` : ''}
+    ${fieldRows.length ? `<div class="pcard-fields">${fieldRows.join('')}</div>` : ''}
     ${avatars ? `<div class="pcard-foot"><span></span><span class="avatars">${avatars}</span></div>` : ''}
   </div>`;
 }
@@ -2139,6 +2223,7 @@ document.addEventListener('keydown', e=>{
   if(e.key === 'Escape'){
     const menu = document.getElementById('cardActionsMenu');
     if(document.getElementById('labelsModalBackdrop').classList.contains('open')) closeLabelsPanel();
+    else if(document.getElementById('salesModalBackdrop').classList.contains('open')) closeSalesPanel();
     else if(document.getElementById('chooserModalBackdrop').classList.contains('open')) closeChooser();
     else if(document.getElementById('promptModalBackdrop').classList.contains('open')) closePrompt();
     else if(menu && !menu.hidden) closeCardMenu();
@@ -2568,7 +2653,10 @@ function promptEditCustomField(){
       desc: (f.options && f.options.length)
         ? escHtml(f.options.map(o=>o.label).join(', '))
         : 'No options yet — nothing to choose from on a card.',
-      onPick: ()=> promptEditFieldOptions(f.id)
+      // Salesperson is shared across every board, so it gets the same kind
+      // of dedicated panel Labels has instead of the plain comma-list prompt
+      // the other dropdown fields use.
+      onPick: ()=> f.id === 'cf_sales' ? openSalesPanel() : promptEditFieldOptions(f.id)
     }))
   });
 }
@@ -2638,6 +2726,77 @@ function closeLabelsPanel(){
 }
 closeOnBackdrop('labelsModalBackdrop', closeLabelsPanel);
 
+/* ---------------- Salespeople panel ----------------
+   A shared, company-wide roster (settings/salespeople) rather than a per-board
+   list, so this edits the one document every board's Salesperson dropdown
+   reads from — see boardCustomFields(). */
+function openSalesPanel(){
+  const input = document.getElementById('newSalesName');
+  if(input) input.value = '';
+  renderSalesPanel();
+  document.getElementById('salesModalBackdrop').classList.add('open');
+}
+function closeSalesPanel(){
+  document.getElementById('salesModalBackdrop').classList.remove('open');
+}
+closeOnBackdrop('salesModalBackdrop', closeSalesPanel);
+
+function renderSalesPanel(){
+  const wrap = document.getElementById('salesList');
+  if(!wrap) return;
+  const sorted = salespeople.slice().sort((a,b)=> (a.label||'').localeCompare(b.label||''));
+  if(!sorted.length){
+    wrap.innerHTML = `<div class="sp-empty">No salespeople yet — add the first one below.</div>`;
+    return;
+  }
+  wrap.innerHTML = sorted.map(s=>`
+    <div class="sp-row">
+      <input type="text" value="${escAttr(s.label)}" id="sp-${escAttr(s.id)}"
+        onblur="renameSalesperson('${escAttr(s.id)}', this.value)"
+        onkeydown="if(event.key==='Enter') this.blur()">
+      <button class="row-remove" title="Remove" onclick="deleteSalesperson('${escAttr(s.id)}')">✕</button>
+    </div>`).join('');
+}
+
+function persistSalespeople(list){
+  // Patched onto the local array immediately for the same reason
+  // persistLabels() does — renderSalesPanel() runs right after this, and the
+  // shared doc's own onSnapshot echo hasn't necessarily landed yet.
+  salespeople = list;
+  return db.collection('settings').doc('salespeople').set({options: list})
+    .catch(e=>{ console.error(e); showToast("Couldn't save salespeople"); });
+}
+async function addSalesperson(){
+  const input = document.getElementById('newSalesName');
+  const name = (input?.value || '').trim();
+  if(!name) return;
+  await persistSalespeople([...salespeople, {id:'sp_' + uid(), label:name}]);
+  input.value = '';
+  renderSalesPanel();
+  input.focus();
+  if(currentView === 'board') scheduleBoardRender();
+  if(openCardId) renderCardModal();
+}
+async function renameSalesperson(id, name){
+  name = (name||'').trim();
+  const s = salespeople.find(x=>x.id === id);
+  if(!s) return;
+  if(!name || name === s.label){ renderSalesPanel(); return; }
+  await persistSalespeople(salespeople.map(x=> x.id===id ? {...x, label:name} : x));
+  renderSalesPanel();
+  if(currentView === 'board') scheduleBoardRender();
+  if(openCardId) renderCardModal();
+}
+async function deleteSalesperson(id){
+  const s = salespeople.find(x=>x.id === id);
+  if(!s) return;
+  if(!confirm(`Remove "${s.label}" from the salesperson list? Cards already set to them will show as unselected.`)) return;
+  await persistSalespeople(salespeople.filter(x=>x.id !== id));
+  renderSalesPanel();
+  if(currentView === 'board') scheduleBoardRender();
+  if(openCardId) renderCardModal();
+}
+
 function renderLabelsPanel(){
   const wrap = document.getElementById('labelList');
   if(!wrap) return;
@@ -2704,6 +2863,15 @@ function startCreateLabel(){ labelEditing = '__new__'; renderLabelsPanel(); setT
 function cancelLabelEdit(){ labelEditing = null; renderLabelsPanel(); }
 
 function persistLabels(labels){
+  // Patched onto the local board immediately, not just sent to Firestore:
+  // renderLabelsPanel() runs right after this returns, and boardLabels() falls
+  // back to the shared defaults whenever a board has no labels of its own yet.
+  // On a board's first-ever label edit, the Firestore write and its own
+  // onSnapshot echo haven't landed by the time that render happens, so without
+  // this the panel would still see "no labels" and redraw the untouched
+  // defaults — the edit looks discarded even though it saved correctly.
+  const b = boardById(currentBoardId);
+  if(b) b.labels = labels;
   return boardsRef().doc(currentBoardId).update({labels})
     .catch(e=>{ console.error(e); showToast("Couldn't save labels"); });
 }
@@ -3114,6 +3282,7 @@ auth.onAuthStateChanged(async user=>{
   catch(e){ console.error(e); }
 
   watchGlobal();
+  watchSalespeople();
   const hash = location.hash.match(/^#b\/(.+)$/);
   if(hash) openBoard(hash[1]);
 });
