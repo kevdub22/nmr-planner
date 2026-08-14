@@ -51,13 +51,19 @@ service cloud.firestore {
       match /{subCollection=**} { allow read, write: if isStaff(); }
     }
 
-    // A member doc is the signed-in person's own profile, keyed by their uid.
-    // Anyone on staff can read the roster (needed to render avatars and
-    // assignees) and remove a stale entry, but only the account itself can
-    // create or edit its own profile — so nobody can rename a colleague.
+    // A member doc is either a real profile — keyed by its own uid, created
+    // automatically the first time that person signs in — or a placeholder,
+    // added by hand from Team Members before someone has an account yet so
+    // cards can be assigned to them early. Only the account itself may create
+    // or edit its own real profile, so nobody can rename a colleague; a
+    // placeholder (flagged isPlaceholder:true) isn't anyone's identity to
+    // protect, so any staff member may create, edit, or remove one.
     match /members/{memberId} {
       allow read, delete: if isStaff();
-      allow create, update: if isStaff() && request.auth.uid == memberId;
+      allow create: if isStaff()
+        && (request.auth.uid == memberId || request.resource.data.isPlaceholder == true);
+      allow update: if isStaff()
+        && (request.auth.uid == memberId || resource.data.isPlaceholder == true);
     }
 
     // Anything not named above is denied outright, so a collection added

@@ -607,10 +607,13 @@
   }
 
   .cm-title-input{
+    display:block;
     font-size:17px; font-weight:700; color:var(--navy);
     font-family:'Instrument Sans', var(--font);
+    line-height:1.3;
     border:1px solid transparent; background:transparent;
     padding:4px 8px; margin:-4px 0 2px -8px; border-radius:5px; width:100%;
+    resize:none; overflow:hidden;
   }
   .cm-title-input:hover{border-color:var(--gray-border);}
   .cm-title-input:focus{background:var(--white); border-color:var(--teal); outline:none;}
@@ -855,6 +858,8 @@
   }
   .roster-row:last-child{border-bottom:none;}
   .roster-row input{flex:1;}
+  .roster-add{display:flex; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid var(--gray-bg);}
+  .roster-add input{flex:1;}
 
   /* Sign-in gate — covers the app until a staff account is confirmed, so no
      board data is ever painted for a signed-out visitor. */
@@ -1067,12 +1072,13 @@
       <div class="toolbar">
         <div>
           <h1>Team Members</h1>
-          <div class="page-sub" style="margin-bottom:0;">Everyone who has signed in to the portal. People appear here automatically — you can edit your own name, and it updates everywhere you're mentioned.</div>
+          <div class="page-sub" style="margin-bottom:0;">People appear here automatically the first time they sign in — you can edit your own name, and it updates everywhere you're mentioned. Add someone below to assign them cards before they have an account.</div>
         </div>
         <div class="toolbar-actions" id="membersBackBtn"></div>
       </div>
       <div class="card" style="max-width:560px;">
         <div id="rosterList"></div>
+        <div class="roster-add" id="rosterAdd"></div>
       </div>
     </div>
 
@@ -2231,8 +2237,12 @@ function cardUpdate(cardId, patch){
 function openCardModal(id){
   if(dragState.active) return;
   openCardId = id;
-  renderCardModal();
+  // Backdrop visible before the title's height is measured — autoResizeTitle()
+  // reads scrollHeight, which is always 0 inside a display:none subtree, so
+  // measuring first would leave a long title collapsed until something else
+  // (like typing) happened to re-trigger it.
   document.getElementById('cardModalBackdrop').classList.add('open');
+  renderCardModal();
 }
 function closeCardModal(){
   openCardId = null;
@@ -2275,6 +2285,16 @@ document.addEventListener('keydown', e=>{
     else if(openCardId) closeCardModal();
   }
 });
+
+// The title is a textarea (not an <input>) so a long one wraps across
+// multiple lines instead of scrolling sideways in a single-line box; this
+// grows it to fit whatever that takes, called on every keystroke and once
+// right after the modal renders so it's sized correctly from the start.
+function autoResizeTitle(el){
+  if(!el) return;
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
 
 function renderCardModal(){
   if(!openCardId) return;
@@ -2330,9 +2350,10 @@ function renderCardModal(){
     <div class="cm-body">
     <div class="cm-layout">
     <div class="cm-main">
-    <input class="cm-title-input" id="cmTitle" value="${escAttr(c.title)}"
-      oninput="debouncedCardUpdate('${c.id}','title',this.value)"
-      onkeydown="if(event.key==='Enter') this.blur()">
+    <textarea class="cm-title-input" id="cmTitle" rows="1"
+      oninput="autoResizeTitle(this); debouncedCardUpdate('${c.id}','title',this.value)"
+      onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}"
+    >${escHtml(c.title)}</textarea>
     <div class="cm-listname">in list <b>${escHtml(l ? l.name : '?')}</b>${c.archived ? `<span class="archive-badge reason-${archiveReason}">${ARCHIVE_REASON_LABEL[archiveReason]}</span>` : ''}</div>
 
     <div class="cm-section">
@@ -2452,6 +2473,7 @@ function renderCardModal(){
     </div>
   `;
   closeCardMenu();
+  autoResizeTitle(document.getElementById('cmTitle'));
 
   if(focused){
     const el = document.getElementById(focused.id);
@@ -2465,6 +2487,7 @@ function renderCardModal(){
       } else {
         el.value = focused.value;
         el.focus();
+        if(el.id === 'cmTitle') autoResizeTitle(el);
         try{ el.setSelectionRange(focused.start, focused.end); }catch(_){}
       }
     }
@@ -3088,44 +3111,77 @@ function initialsOf(name){
 function renderRoster(){
   const wrap = document.getElementById('rosterList');
   if(!members.length){
-    wrap.innerHTML = `<div class="empty-state" style="padding:24px;"><div class="big">Nobody has signed in yet</div>Teammates appear here automatically the first time they open the portal.</div>`;
-    return;
+    wrap.innerHTML = `<div class="empty-state" style="padding:24px;"><div class="big">Nobody yet</div>Teammates appear here automatically the first time they sign in — or add one below to assign cards to them early.</div>`;
+  } else {
+    const me = myMemberId();
+    wrap.innerHTML = members.map(m=>{
+      const isMe = m.id === me;
+      const editable = isMe || m.isPlaceholder;
+      return `
+      <div class="roster-row">
+        <span class="avatar lg" style="background:${escAttr(m.color)}; margin-left:0;">${escAttr(m.initials)}</span>
+        <div style="flex:1; min-width:0;">
+          ${editable
+            ? `<input type="text" value="${escAttr(m.name)}" title="${isMe ? 'Your display name' : 'Rename'}"
+                   onblur="renameMember('${m.id}', this.value)" onkeydown="if(event.key==='Enter') this.blur()">`
+            : `<div style="font-size:13.5px; font-weight:600;">${escHtml(m.name)}</div>`}
+          <div style="font-size:11.5px; color:var(--gray-text); margin-top:2px;">
+            ${m.isPlaceholder ? 'Not signed in yet' : escHtml(m.email||'')}${isMe ? ' · you' : ''}
+          </div>
+        </div>
+        ${isMe ? '' : `<button class="row-remove" title="Remove member" onclick="removeMember('${m.id}')">✕</button>`}
+      </div>`;
+    }).join('');
   }
-  const me = myMemberId();
-  wrap.innerHTML = members.map(m=>{
-    const isMe = m.id === me;
-    return `
-    <div class="roster-row">
-      <span class="avatar lg" style="background:${escAttr(m.color)}; margin-left:0;">${escAttr(m.initials)}</span>
-      <div style="flex:1; min-width:0;">
-        ${isMe
-          ? `<input type="text" value="${escAttr(m.name)}" title="Your display name"
-                 onblur="renameSelf(this.value)" onkeydown="if(event.key==='Enter') this.blur()">`
-          : `<div style="font-size:13.5px; font-weight:600;">${escHtml(m.name)}</div>`}
-        <div style="font-size:11.5px; color:var(--gray-text); margin-top:2px;">${escHtml(m.email||'')}${isMe ? ' · you' : ''}</div>
-      </div>
-      ${isMe ? '' : `<button class="row-remove" title="Remove member" onclick="removeMember('${m.id}')">✕</button>`}
-    </div>`;
-  }).join('');
+  const addWrap = document.getElementById('rosterAdd');
+  if(addWrap) addWrap.innerHTML = `
+    <input type="text" id="newMemberName" placeholder="Add a teammate who hasn't signed in yet..."
+      onkeydown="if(event.key==='Enter') addMember()">
+    <button class="btn btn-primary btn-sm" onclick="addMember()">Add</button>`;
 }
-/* Only your own name is editable — the rules reject writing to anyone else's
-   member doc, so a colleague's row is rendered as plain text. */
-function renameSelf(name){
+/* A real profile is only editable by the account it belongs to — the rules
+   reject writing to anyone else's — but a placeholder (added by hand, no
+   login yet) is team-owned, so any staff member can fix a typo in it. */
+function renameMember(id, name){
   name = (name||'').trim();
-  const me = myMemberId();
-  const m = memberById(me);
+  const m = memberById(id);
   if(!m) return;
   if(!name || name === m.name){ renderRoster(); return; }
-  db.collection('members').doc(me).update({name, initials: initialsOf(name)}).catch(e=>{
-    console.error(e); showToast("Couldn't save your name");
+  db.collection('members').doc(id).update({name, initials: initialsOf(name)}).catch(e=>{
+    console.error(e); showToast("Couldn't save name");
   });
 }
-/* Removal stays for clearing out someone who has left — they reappear if
-   they sign in again. */
+/* Placeholders exist so a card can be assigned to someone before they have an
+   account — a plain Firestore doc, not a login, so this never touches
+   Authentication. Colour is random rather than uid-derived (there's no uid
+   yet) but stable once picked, same as a real profile's. */
+async function addMember(){
+  const input = document.getElementById('newMemberName');
+  const name = (input?.value || '').trim();
+  if(!name) return;
+  const id = 'mem_' + uid();
+  const payload = {
+    name, initials: initialsOf(name),
+    color: MEMBER_COLORS[Math.floor(Math.random() * MEMBER_COLORS.length)],
+    email: '', isPlaceholder: true
+  };
+  try{
+    await db.collection('members').doc(id).set(payload);
+    input.value = '';
+    showToast(`${name} added — assign them to cards now, or wait until they sign in`);
+  }catch(e){
+    console.error(e); showToast("Couldn't add member");
+  }
+}
+/* Removal stays for clearing out someone who has left, or a placeholder once
+   the real person has signed in — they reappear if they sign in again. */
 function removeMember(id){
   const m = memberById(id);
   if(!m) return;
-  if(!confirm(`Remove ${m.name} from the roster? Their card assignments and comments stay, but show as unassigned until they sign in again.`)) return;
+  const msg = m.isPlaceholder
+    ? `Remove ${m.name}? Their card assignments and comments stay, but show as unassigned.`
+    : `Remove ${m.name} from the roster? Their card assignments and comments stay, but show as unassigned until they sign in again.`;
+  if(!confirm(msg)) return;
   db.collection('members').doc(id).delete().catch(e=>{
     console.error(e); showToast("Couldn't remove member");
   });
