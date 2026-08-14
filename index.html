@@ -485,28 +485,39 @@
      header (and Close) scrolled away with everything else. The corners are
      rounded per-element instead: .cm-head takes the top two, .cm-side takes
      the bottom-right (and, stacked on mobile, the bottom-left too). */
-  .modal.modal-card{max-width:940px; padding:0;}
+  /* The modal is capped to fit the viewport and manages its own internal
+     scroll (.cm-body) rather than growing past the screen and relying on the
+     backdrop to scroll it. .cm-head sits outside that scrolling area as a
+     plain flex child — not position:sticky — so it's simply always visible,
+     with no dark backdrop gap ever opening up above it and no risk of an
+     overflow:hidden ancestor trapping the stickiness against itself. Both
+     bugs the previous sticky-based version had are structural non-issues
+     here: there is no scroll for it to detach from. */
+  .modal.modal-card{
+    max-width:940px; padding:0;
+    display:flex; flex-direction:column;
+    max-height:calc(100vh - 80px);
+    overflow:hidden;
+  }
 
   /* Card modal is two columns: the card itself on the left, comments kept in
      a sidebar on the right so a long description never buries the discussion.
-     Single content row (no separate footer row) so the two columns are always
-     the same height — .cm-side has no height cap of its own, so its grey
-     background stretches to match whichever column ends up taller instead of
-     stopping short partway down the card. */
+     Single content row so the two columns are always the same height —
+     .cm-side has no height cap of its own, so its grey background stretches
+     to match whichever column ends up taller instead of stopping short
+     partway down the card. */
+  .cm-body{flex:1; min-height:0; overflow-y:auto;}
   .cm-layout{
     display:grid;
     grid-template-columns:minmax(0,1fr) 330px;
-    grid-template-areas:"head head" "main side";
   }
   .cm-head{
-    grid-area:head;
+    flex-shrink:0;
     display:flex; align-items:center; justify-content:flex-end;
     gap:4px;
     padding:6px 10px;
     border-bottom:1px solid var(--gray-border);
     background:var(--white);
-    position:sticky; top:0; z-index:5;
-    border-top-left-radius:10px; border-top-right-radius:10px;
   }
   .cm-icon-btn{
     background:none; border:none; cursor:pointer;
@@ -544,14 +555,12 @@
   .archive-badge.reason-billing{background:#cfe9f8; color:#0c4a6e;}
   .archive-badge.reason-completed{background:#b7e4c7; color:#14532d;}
   .archive-badge.reason-manual{background:#e2e5ea; color:#3a4250;}
-  .cm-main{padding:14px 24px 24px 24px; min-width:0; grid-area:main;}
+  .cm-main{padding:14px 24px 24px 24px; min-width:0;}
   .cm-side{
-    grid-area:side;
     background:var(--gray-bg);
     border-left:1px solid var(--gray-border);
     padding:20px;
     align-self:stretch;
-    border-bottom-right-radius:10px;
   }
   .cm-side-head{
     display:flex; align-items:center; gap:7px;
@@ -581,8 +590,8 @@
     padding:6px 0;
   }
   @media (max-width: 820px){
-    .cm-layout{grid-template-columns:1fr; grid-template-areas:"head" "main" "side";}
-    .cm-side{border-left:none; border-top:1px solid var(--gray-border); border-bottom-left-radius:10px;}
+    .cm-layout{grid-template-columns:1fr;}
+    .cm-side{border-left:none; border-top:1px solid var(--gray-border);}
   }
 
   .cm-title-input{
@@ -2272,7 +2281,6 @@ function renderCardModal(){
   const archiveReason = c.archiveReason || 'manual';
 
   modal.innerHTML = `
-    <div class="cm-layout">
     <div class="cm-head">
       <div class="cm-menu-wrap">
         <button class="cm-icon-btn" title="More actions" onclick="toggleCardMenu(event)">☰</button>
@@ -2292,6 +2300,8 @@ function renderCardModal(){
       </div>
       <button class="cm-icon-btn" title="Close" onclick="closeCardModal()">✕</button>
     </div>
+    <div class="cm-body">
+    <div class="cm-layout">
     <div class="cm-main">
     <input class="cm-title-input" id="cmTitle" value="${escAttr(c.title)}"
       oninput="debouncedCardUpdate('${c.id}','title',this.value)"
@@ -2411,6 +2421,7 @@ function renderCardModal(){
         </div>`;
       }).join('') : `<div class="cm-empty-comments">No comments yet. Anything you post here is visible to the whole team.</div>`}
     </aside>
+    </div>
     </div>
   `;
   closeCardMenu();
