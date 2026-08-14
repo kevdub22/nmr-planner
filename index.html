@@ -1352,9 +1352,24 @@ function pickChooserChoice(i){
   closeChooser();
   if(fn) fn();
 }
-document.getElementById('chooserModalBackdrop').addEventListener('click', e=>{
-  if(e.target.id === 'chooserModalBackdrop') closeChooser();
-});
+/* Close a dialog when the backdrop is clicked — but only when the press both
+   started and ended on the backdrop.
+
+   A plain click handler is not enough: a click event's target is the nearest
+   common ancestor of where the button went down and where it came up. Selecting
+   text by dragging from inside the dialog and releasing past its edge therefore
+   reports a click on the backdrop, which used to shut the card mid-selection. */
+function closeOnBackdrop(backdropId, closeFn){
+  const el = document.getElementById(backdropId);
+  let pressedOnBackdrop = false;
+  el.addEventListener('mousedown', e=>{ pressedOnBackdrop = (e.target === el); });
+  el.addEventListener('click', e=>{
+    if(e.target === el && pressedOnBackdrop) closeFn();
+    pressedOnBackdrop = false;
+  });
+}
+
+closeOnBackdrop('chooserModalBackdrop', closeChooser);
 
 function openPrompt({title, sub, value, okLabel, onOk}){
   document.getElementById('promptTitle').textContent = title;
@@ -1376,9 +1391,7 @@ function confirmPrompt(){
   closePrompt();
   if(fn) fn(v);
 }
-document.getElementById('promptModalBackdrop').addEventListener('click', e=>{
-  if(e.target.id === 'promptModalBackdrop') closePrompt();
-});
+closeOnBackdrop('promptModalBackdrop', closePrompt);
 
 function promptNewBoard(){
   openPrompt({
@@ -1947,9 +1960,7 @@ function closeCardModal(){
   openCardId = null;
   document.getElementById('cardModalBackdrop').classList.remove('open');
 }
-document.getElementById('cardModalBackdrop').addEventListener('click', e=>{
-  if(e.target.id === 'cardModalBackdrop') closeCardModal();
-});
+closeOnBackdrop('cardModalBackdrop', closeCardModal);
 document.addEventListener('keydown', e=>{
   if(e.key === 'Escape'){
     if(document.getElementById('labelsModalBackdrop').classList.contains('open')) closeLabelsPanel();
@@ -2432,9 +2443,7 @@ function closeLabelsPanel(){
   labelEditing = null;
   document.getElementById('labelsModalBackdrop').classList.remove('open');
 }
-document.getElementById('labelsModalBackdrop').addEventListener('click', e=>{
-  if(e.target.id === 'labelsModalBackdrop') closeLabelsPanel();
-});
+closeOnBackdrop('labelsModalBackdrop', closeLabelsPanel);
 
 function renderLabelsPanel(){
   const wrap = document.getElementById('labelList');
