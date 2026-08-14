@@ -244,7 +244,11 @@
   .lanes{
     display:flex; align-items:flex-start; gap:12px;
     overflow-x:auto; flex:1;
-    padding:4px 2px 20px 2px;
+    /* Horizontal padding needs to clear the drag-over outline (2px width +
+       2px offset = 4px) or it gets clipped by the scroll container's own
+       edge — most visible on the first/last lane, which have no neighboring
+       lane to absorb the overflow the way an inner lane's gap does. */
+    padding:4px 6px 20px 6px;
   }
   .lane{
     background:#ebedf1;
@@ -392,6 +396,14 @@
   .pcard.dragging{opacity:0.45;}
   .pcard.drag-over{box-shadow:0 -3px 0 0 var(--teal);}
   .pcard.search-hidden{display:none;}
+  /* Live = today falls within the card's start–due range, i.e. the show is
+     happening right now. border+shadow rather than outline, so it reads
+     clearly without needing extra room reserved around the card the way the
+     drag-over outline does. */
+  .pcard.pcard-live{
+    border-color:var(--green);
+    box-shadow:0 0 0 1px var(--green);
+  }
   .pcard-labels{display:flex; flex-wrap:wrap; gap:4px;}
   .pcard-label{
     border-radius:4px;
@@ -1630,6 +1642,21 @@ function dueClass(due){
   if(diff <= 2) return 'due-soon';
   return '';
 }
+function parseYmd(d){
+  if(!d) return null;
+  const [y,m,day] = d.split('-').map(Number);
+  return new Date(y, m-1, day);
+}
+/* "Live" means the show/event is happening today — today falls within the
+   card's start–due range. A card with only one of the two dates set treats
+   that single date as both bounds, so it reads as live on that one day. */
+function isCardLive(c){
+  if(!c.startDate && !c.dueDate) return false;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const start = parseYmd(c.startDate) || parseYmd(c.dueDate);
+  const end = parseYmd(c.dueDate) || parseYmd(c.startDate);
+  return today >= start && today <= end;
+}
 
 function boardLabels(){
   const b = boardById(currentBoardId);
@@ -1708,7 +1735,7 @@ function cardFrontHtml(c){
   }).join('');
 
   return `
-  <div class="pcard" data-card-id="${c.id}" draggable="true" onclick="openCardModal('${c.id}')"
+  <div class="pcard${isCardLive(c) ? ' pcard-live' : ''}" data-card-id="${c.id}" draggable="true" onclick="openCardModal('${c.id}')"
        ondragstart="cardDragStart(event,'${c.id}')" ondragover="cardDragOver(event,'${c.id}')"
        ondragleave="cardDragLeave(event)" ondrop="cardDrop(event,'${c.id}')" ondragend="cardDragEnd(event)">
     ${labelsHtml}
