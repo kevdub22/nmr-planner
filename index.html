@@ -1669,6 +1669,13 @@ function cardFrontHtml(c){
   // Custom fields worth seeing without opening the card get their own row
   // each, labeled with the field's name — unlike the icon badges above, a
   // bare value like "Active" or "Eric Skoloda" means nothing without it.
+  // Dropdown and checkbox fields always show when filled in. Text fields are
+  // opt-in instead (an allow-list, not a per-field flag, so it applies
+  // uniformly regardless of what a given board's own stored copy of the field
+  // definitions happens to have saved) — a free-text box is more likely to
+  // hold something not meant for the front of the card, unlike a chosen
+  // status or a ticked box.
+  const CARD_FRONT_TEXT_FIELDS = new Set(['cf_nmrest', 'cf_programmer']);
   const fieldRows = [];
   const cfVals = c.fields || {};
   boardCustomFields().forEach(f=>{
@@ -1681,6 +1688,8 @@ function cardFrontHtml(c){
       fieldRows.push(`<div class="pcard-field-row"><span class="pcf-name">${escHtml(f.name)}</span><span class="pcf-val"${style}>${escHtml(opt.label)}</span></div>`);
     } else if(f.type === 'checkbox'){
       fieldRows.push(`<div class="pcard-field-row"><span class="pcf-name">${escHtml(f.name.replace(/[?"]/g,''))}</span><span class="pcf-val check-done">✓ Yes</span></div>`);
+    } else if(f.type === 'text' && CARD_FRONT_TEXT_FIELDS.has(f.id)){
+      fieldRows.push(`<div class="pcard-field-row"><span class="pcf-name">${escHtml(f.name)}</span><span class="pcf-val" title="${escAttr(String(v))}">${escHtml(String(v))}</span></div>`);
     }
   });
 
