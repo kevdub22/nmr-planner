@@ -256,7 +256,6 @@
     border-radius:var(--radius);
     width:272px; flex-shrink:0;
     display:flex; flex-direction:column;
-    max-height:calc(100vh - 220px);
   }
   .lane.drag-over-lane{outline:2px solid var(--teal); outline-offset:2px;}
   /* Lane color: a top accent bar plus a tinted header, so the color reads at
@@ -338,7 +337,7 @@
   }
   .lane-btn:hover{background:rgba(8,31,66,0.08); color:var(--navy);}
   .lane-cards{
-    overflow-y:auto; padding:8px 8px 4px 8px;
+    padding:8px 8px 4px 8px;
     display:flex; flex-direction:column; gap:8px; min-height:8px;
   }
   /* Coloured lanes tint their header, so the first card needs a little more
@@ -970,7 +969,6 @@
     .nav-links.open{transform:translateX(0);}
     .nav-item{padding:14px 22px; white-space:normal; flex-shrink:0;}
     .main{padding:20px 18px 30px 18px;}
-    .lane{max-height:calc(100vh - 240px);}
   }
   @media (max-width: 560px){
     .main{padding:16px 12px 24px 12px;}
