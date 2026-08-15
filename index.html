@@ -1286,6 +1286,9 @@
         <div class="toolbar-actions">
           <input type="text" id="boardSearch" placeholder="Search cards..." oninput="applySearch()">
           <button class="view-switch-btn" id="viewSwitchBtn" onclick="openViewSwitcher(event)" title="Change view"></button>
+          <button class="view-switch-btn" id="pdfExportBtn" onclick="exportBoardPdf()" title="Download PDF report">
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M10 2.5v10.5m0 0-4-4m4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 14v1.5A2.5 2.5 0 0 0 5.5 18h9a2.5 2.5 0 0 0 2.5-2.5V14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
           <button class="btn btn-ghost btn-sm" id="archiveBtn" onclick="toggleArchiveView()">🗄 Archive</button>
           <button class="btn btn-ghost btn-sm" id="myJobsBtn" onclick="toggleMyJobsFilter()" title="Show only cards assigned to you">👤 My Jobs</button>
           <button class="btn btn-ghost btn-sm" onclick="switchView('members')">Members</button>
@@ -1431,6 +1434,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore-compat.js"></script>
+<!-- PDF export (Board Report button) — client-side only, no server involved. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
 <script>
 /* ================= CONFIG =================
@@ -2105,7 +2111,8 @@ function sortTableBy(key){
 function renderTablePanel(){
   const wrap = document.getElementById('tablePanel');
   if(!wrap) return;
-  const active = cards.filter(c=>!c.archived).slice().sort((a,b)=>{
+  const me = myMemberId();
+  const active = cards.filter(c=>!c.archived && (!myJobsFilter || (c.memberIds||[]).includes(me))).slice().sort((a,b)=>{
     // Undated cards always sort to the end regardless of direction, so
     // flipping to descending surfaces the soonest-overdue first instead of
     // burying every real date under a pile of blanks.
@@ -2175,7 +2182,8 @@ function calGoToday(){
 function renderCalendarPanel(){
   const wrap = document.getElementById('calendarPanel');
   if(!wrap) return;
-  const active = cards.filter(c=>!c.archived);
+  const me = myMemberId();
+  const active = cards.filter(c=>!c.archived && (!myJobsFilter || (c.memberIds||[]).includes(me)));
   const byDay = {};
   active.forEach(c=>{
     const day = c.dueDate || c.startDate;
@@ -2236,6 +2244,123 @@ function renderCalendarPanel(){
       }).join('')}
     </div>
   `;
+}
+
+/* ---------------- PDF export ----------------
+   Client-side only, via jsPDF + its autotable plugin (loaded from cdnjs
+   alongside the Firebase scripts) — no server involved, so this only ever
+   sees the board data already loaded in this browser tab. */
+async function exportBoardPdf(){
+  if(!window.jspdf || !window.jspdf.jsPDF){
+    showToast("PDF library didn't load — check your connection and try again");
+    return;
+  }
+  const board = boardById(currentBoardId);
+  const boardName = board ? (board.name || 'Untitled board') : 'Board';
+  const active = cards.filter(c=>!c.archived);
+  const archivedCount = cards.filter(c=>c.archived).length;
+  const todayYmd = calYmd(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'letter'});
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 40;
+
+  doc.setFont(undefined, 'bold'); doc.setFontSize(18); doc.setTextColor(8,31,66);
+  doc.text(boardName, margin, 46);
+  doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(110);
+  doc.text(`Board report — generated ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}`, margin, 62);
+
+  // ---- Summary ----
+  const overdue = active.filter(c=>c.dueDate && c.dueDate < todayYmd).length;
+  const noDue = active.filter(c=>!c.dueDate).length;
+  const weekAhead = new Date(); weekAhead.setDate(weekAhead.getDate()+7);
+  const weekYmd = calYmd(weekAhead.getFullYear(), weekAhead.getMonth(), weekAhead.getDate());
+  const dueSoon = active.filter(c=>c.dueDate && c.dueDate >= todayYmd && c.dueDate <= weekYmd).length;
+
+  doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(8,31,66);
+  doc.text('Summary', margin, 90);
+  doc.autoTable({
+    startY: 98,
+    theme: 'plain',
+    styles: {fontSize:9, textColor:[28,36,49]},
+    body: [
+      ['Active cards', String(active.length)],
+      ['Overdue', String(overdue)],
+      ['Due within 7 days', String(dueSoon)],
+      ['No due date set', String(noDue)],
+      ['Archived', String(archivedCount)]
+    ],
+    columnStyles: {0:{fontStyle:'bold', cellWidth:160}}
+  });
+
+  // ---- Cards by list ----
+  const byList = {};
+  lists.forEach(l=>{ byList[l.id] = {name:l.name||'Untitled list', count:0}; });
+  active.forEach(c=>{ if(byList[c.listId]) byList[c.listId].count++; });
+  let y = doc.lastAutoTable.finalY + 20;
+  doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(8,31,66);
+  doc.text('Cards by List', margin, y);
+  doc.autoTable({
+    startY: y+8,
+    head: [['List','Cards']],
+    body: Object.values(byList).map(x=>[x.name, String(x.count)]),
+    styles: {fontSize:9},
+    headStyles: {fillColor:[8,31,66], textColor:255},
+    columnStyles: {1:{halign:'right', cellWidth:60}}
+  });
+
+  // ---- Status breakdown, if this board has a Status-like dropdown field ----
+  const statusField = boardCustomFields().find(f=>f.type==='dropdown' && /status/i.test(f.name||''));
+  if(statusField){
+    const counts = {};
+    (statusField.options||[]).forEach(o=> counts[o.id] = {label:o.label, count:0});
+    active.forEach(c=>{
+      const v = (c.fields||{})[statusField.id];
+      if(v && counts[v]) counts[v].count++;
+    });
+    y = doc.lastAutoTable.finalY + 20;
+    doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(8,31,66);
+    doc.text(`Cards by ${statusField.name}`, margin, y);
+    doc.autoTable({
+      startY: y+8,
+      head: [[statusField.name, 'Cards']],
+      body: Object.values(counts).map(x=>[x.label, String(x.count)]),
+      styles: {fontSize:9},
+      headStyles: {fillColor:[8,31,66], textColor:255},
+      columnStyles: {1:{halign:'right', cellWidth:60}}
+    });
+  }
+
+  // ---- Full card listing ----
+  const boardLbls = boardLabels();
+  const sorted = active.slice().sort((a,b)=> (a.dueDate||'9999-99-99').localeCompare(b.dueDate||'9999-99-99'));
+  const rows = sorted.map(c=>{
+    const l = listById(c.listId);
+    const labelNames = boardLbls.filter(x=>(c.labelIds||[]).includes(x.id)).map(x=>x.name).join(', ');
+    const memberNames = (c.memberIds||[]).map(id=>memberById(id)?.name).filter(Boolean).join(', ');
+    const overdueRow = c.dueDate && c.dueDate < todayYmd;
+    return [c.title||'Untitled', l?l.name:'', labelNames, c.dueDate ? fmtShortDate(c.dueDate) : '', memberNames, overdueRow];
+  });
+  y = doc.lastAutoTable.finalY + 20;
+  doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(8,31,66);
+  doc.text('All Cards', margin, y);
+  doc.autoTable({
+    startY: y+8,
+    head: [['Card','List','Labels','Due','Members']],
+    body: rows.map(r=>r.slice(0,5)),
+    styles: {fontSize:8, cellPadding:5},
+    headStyles: {fillColor:[8,31,66], textColor:255},
+    columnStyles: {0:{cellWidth:170}, 1:{cellWidth:70}, 2:{cellWidth:90}, 3:{cellWidth:55}},
+    didParseCell: data=>{
+      if(data.section === 'body' && data.column.index === 3 && rows[data.row.index][5]){
+        data.cell.styles.textColor = [192,57,43];
+        data.cell.styles.fontStyle = 'bold';
+      }
+    }
+  });
+
+  doc.save(`${boardName.replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').toLowerCase() || 'board'}-report.pdf`);
 }
 
 function renderArchivePanel(){
@@ -2454,8 +2579,29 @@ function renderListActionsMenu(){
       ${LIST_COLORS.map(col=>`<button class="color-swatch${l.color===col?' on':''}" style="background:${col}" title="${col}" onclick="setListColor('${l.id}','${col}')"></button>`).join('')}
       <button class="color-swatch none${!l.color?' on':''}" title="No color" onclick="setListColor('${l.id}','')">✕</button>
     </div>
+    <button type="button" class="cm-menu-item" onclick="archiveAllCardsInList('${l.id}')">🗄 Archive All Cards in List</button>
     <button type="button" class="cm-menu-item danger la-delete" onclick="closeListActionsMenu(); deleteList('${l.id}')">🗑 Delete List</button>
   `;
+}
+async function archiveAllCardsInList(listId){
+  const l = listById(listId);
+  if(!l) return;
+  const toArchive = cardsInList(listId);
+  closeListActionsMenu();
+  if(!toArchive.length){ showToast(`"${l.name}" has no cards to archive`); return; }
+  if(!confirm(`Archive all ${toArchive.length} card${toArchive.length===1?'':'s'} in "${l.name}"?`)) return;
+  try{
+    const batch = db.batch();
+    const archivedAt = new Date().toISOString();
+    toArchive.forEach(c=> batch.update(cardsRef(currentBoardId).doc(c.id), {
+      archived:true, archiveReason:'manual', archivedAt
+    }));
+    await batch.commit();
+    touchBoard();
+    showToast(`Archived ${toArchive.length} card${toArchive.length===1?'':'s'}`);
+  }catch(e){
+    console.error(e); showToast("Couldn't archive those cards");
+  }
 }
 function openListActionsMenu(evt, listId){
   evt.stopPropagation();
@@ -4334,14 +4480,18 @@ function signOutNow(){
 }
 
 /* ---------------- My Jobs filter ----------------
-   A standing toggle (not tied to any one board) that narrows the open
-   board's lanes down to cards you're a member of, using the same
-   .search-hidden mechanism as the text search box in applySearch(). */
+   A standing toggle (not tied to any one board) that narrows cards down to
+   ones you're a member of — applySearch() handles it for lanes (via
+   .search-hidden, same mechanism as the text search box), and Table/Calendar
+   read myJobsFilter directly since they rebuild from scratch on every
+   render rather than toggling a class on existing DOM. Re-rendering the
+   whole board (rather than just calling applySearch()) is what makes the
+   toggle actually reach whichever of the three views is currently open. */
 function toggleMyJobsFilter(){
   myJobsFilter = !myJobsFilter;
   const btn = document.getElementById('myJobsBtn');
   if(btn) btn.classList.toggle('active', myJobsFilter);
-  applySearch();
+  scheduleBoardRender();
 }
 
 function renderMe(){
