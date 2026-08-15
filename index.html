@@ -479,7 +479,11 @@
     cursor:pointer; font-family:inherit;
   }
   .modal-choice:hover{border-color:var(--teal); background:#f7fbfc;}
-  .modal-choice .mc-title{font-size:13.5px; font-weight:700; color:var(--navy); margin-bottom:2px;}
+  .modal-choice .mc-title{font-size:13.5px; font-weight:700; color:var(--navy); margin-bottom:2px; display:flex; align-items:center; gap:8px;}
+  .chooser-color-dot{
+    width:12px; height:12px; border-radius:50%; flex-shrink:0;
+    background:var(--gray-border);
+  }
   .modal-choice .mc-desc{font-size:12px; color:var(--gray-text); line-height:1.5;}
   /* No overflow:hidden here on purpose: it used to clip the two-column grid
      to the modal's rounded corners, but an overflow:hidden ancestor also
@@ -2461,12 +2465,23 @@ function closeCardMenu(){
   const menu = document.getElementById('cardActionsMenu');
   if(menu) menu.hidden = true;
 }
+// A click inside a popover (e.g. a calendar day) often re-renders that
+// popover's innerHTML before this bubbles up here, which detaches e.target
+// from the tree — el.contains(e.target) then wrongly reports "outside" and
+// closes the very popover the click was meant to update. composedPath() is
+// a snapshot taken at dispatch time, so it stays accurate even after the
+// clicked node has been replaced.
+function clickWasInside(e, el){
+  if(!el) return false;
+  if(typeof e.composedPath === 'function') return e.composedPath().includes(el);
+  return el.contains(e.target);
+}
 document.addEventListener('click', e=>{
   const menu = document.getElementById('cardActionsMenu');
-  if(menu && !menu.hidden && !menu.contains(e.target)) closeCardMenu();
-  if(membersPopoverEl && !membersPopoverEl.contains(e.target)) closeMembersPopover();
-  if(datesPopoverEl && !datesPopoverEl.contains(e.target)) closeDatesPopover();
-  if(listActionsEl && !listActionsEl.contains(e.target)) closeListActionsMenu();
+  if(menu && !menu.hidden && !clickWasInside(e, menu)) closeCardMenu();
+  if(membersPopoverEl && !clickWasInside(e, membersPopoverEl)) closeMembersPopover();
+  if(datesPopoverEl && !clickWasInside(e, datesPopoverEl)) closeDatesPopover();
+  if(listActionsEl && !clickWasInside(e, listActionsEl)) closeListActionsMenu();
 });
 
 // #cardModal itself is never replaced (only its innerHTML, on every render),
@@ -2621,20 +2636,6 @@ function renderCardModal(){
     </div>
 
     <div class="cm-section">
-      <div class="cm-section-title">Attachments${(c.attachments||[]).length ? ` <span style="text-transform:none; letter-spacing:0;">— ${(c.attachments||[]).length}</span>` : ''}</div>
-      ${(c.attachments||[]).map((a,i)=>`
-        <div class="attach-item">
-          <a class="attach-link" href="${escAttr(a.url)}" target="_blank" rel="noopener noreferrer">🔗 ${escHtml(a.title || a.url)}</a>
-          <button class="row-remove" title="Remove attachment" onclick="removeAttachment('${c.id}',${i})">✕</button>
-        </div>`).join('')}
-      <div class="check-add">
-        <input type="text" id="newAttachUrl" placeholder="Paste a link..." onkeydown="if(event.key==='Enter') addAttachment('${c.id}')">
-        <input type="text" id="newAttachTitle" placeholder="Title (optional)" onkeydown="if(event.key==='Enter') addAttachment('${c.id}')">
-        <button class="btn btn-ghost btn-sm" onclick="addAttachment('${c.id}')">Add</button>
-      </div>
-    </div>
-
-    <div class="cm-section">
       <div class="cm-desc-head">
         <div class="cm-section-title">Description</div>
         <button class="rt-toggle" id="rtToggle" onclick="toggleDescExpanded()">${descExpanded() ? '▴ Collapse' : '▾ Expand'}</button>
@@ -2685,6 +2686,20 @@ function renderCardModal(){
         <input type="text" id="newCheckItem" placeholder="Add an item..." onkeydown="if(event.key==='Enter') addCheckItem('${c.id}')">
         <input type="date" id="newCheckItemDue" class="ci-due" title="Optional due date">
         <button class="btn btn-ghost btn-sm" onclick="addCheckItem('${c.id}')">Add</button>
+      </div>
+    </div>
+
+    <div class="cm-section">
+      <div class="cm-section-title">Links${(c.attachments||[]).length ? ` <span style="text-transform:none; letter-spacing:0;">— ${(c.attachments||[]).length}</span>` : ''}</div>
+      ${(c.attachments||[]).map((a,i)=>`
+        <div class="attach-item">
+          <a class="attach-link" href="${escAttr(a.url)}" target="_blank" rel="noopener noreferrer">🔗 ${escHtml(a.title || a.url)}</a>
+          <button class="row-remove" title="Remove link" onclick="removeAttachment('${c.id}',${i})">✕</button>
+        </div>`).join('')}
+      <div class="check-add">
+        <input type="text" id="newAttachUrl" placeholder="Paste a link..." onkeydown="if(event.key==='Enter') addAttachment('${c.id}')">
+        <input type="text" id="newAttachTitle" placeholder="Title (optional)" onkeydown="if(event.key==='Enter') addAttachment('${c.id}')">
+        <button class="btn btn-ghost btn-sm" onclick="addAttachment('${c.id}')">Add</button>
       </div>
     </div>
 
@@ -3646,7 +3661,7 @@ function openCardListSwitcher(evt, cardId){
     title: 'Move to List',
     sub: 'Choose a list on this board.',
     choices: options.map(l=>({
-      title: escHtml(l.name || 'Untitled list'),
+      title: `<span class="chooser-color-dot"${l.color ? ` style="background:${escAttr(l.color)}"` : ''}></span>${escHtml(l.name || 'Untitled list')}`,
       desc: l.id === c.listId ? 'Current list' : '',
       onPick: ()=>{
         if(l.id === c.listId) return;
