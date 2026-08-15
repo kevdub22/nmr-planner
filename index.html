@@ -228,6 +228,10 @@
     padding:10px 14px; border-bottom:1px solid var(--gray-border); background:#f7f8fa;
     white-space:nowrap;
   }
+  .jobs-table th.sortable{cursor:pointer; user-select:none;}
+  .jobs-table th.sortable:hover{color:var(--navy);}
+  .jobs-table th.sorted{color:var(--navy);}
+  .sort-arrow{font-size:8px; margin-left:4px; display:inline-block;}
   .jobs-table td{padding:10px 14px; border-bottom:1px solid var(--gray-border); font-size:13px; vertical-align:middle;}
   .jobs-table tbody tr{cursor:pointer;}
   .jobs-table tbody tr:hover{background:var(--gray-bg);}
@@ -1278,10 +1282,10 @@
       <div class="toolbar">
         <div style="display:flex; align-items:center; gap:8px; min-width:0;">
           <input class="board-title-input" id="boardTitleInput" oninput="autoResizeBoardTitle(this)" onblur="renameBoard(this.value)" onkeydown="if(event.key==='Enter') this.blur()">
-          <button class="view-switch-btn" id="viewSwitchBtn" onclick="openViewSwitcher(event)" title="Change view"></button>
         </div>
         <div class="toolbar-actions">
           <input type="text" id="boardSearch" placeholder="Search cards..." oninput="applySearch()">
+          <button class="view-switch-btn" id="viewSwitchBtn" onclick="openViewSwitcher(event)" title="Change view"></button>
           <button class="btn btn-ghost btn-sm" id="archiveBtn" onclick="toggleArchiveView()">🗄 Archive</button>
           <button class="btn btn-ghost btn-sm" id="myJobsBtn" onclick="toggleMyJobsFilter()" title="Show only cards assigned to you">👤 My Jobs</button>
           <button class="btn btn-ghost btn-sm" onclick="switchView('members')">Members</button>
@@ -2076,11 +2080,44 @@ function updateViewSwitchBtn(){
 }
 
 /* ---------------- Table view ---------------- */
+const TABLE_COLUMNS = [
+  {key:'card',    label:'Card'},
+  {key:'list',    label:'List'},
+  {key:'labels',  label:'Labels'},
+  {key:'members', label:'Members'},
+  {key:'due',     label:'Due date'}
+];
+let tableSortKey = 'due';
+let tableSortDir = 1; // 1 = ascending, -1 = descending
+function tableSortValue(c, key){
+  if(key === 'card') return (c.title||'').toLowerCase();
+  if(key === 'list') return (listById(c.listId)?.name||'').toLowerCase();
+  if(key === 'labels') return boardLabels().filter(x=>(c.labelIds||[]).includes(x.id)).map(x=>x.name||'').join(', ').toLowerCase();
+  if(key === 'members') return (c.memberIds||[]).map(id=>memberById(id)?.name||'').join(', ').toLowerCase();
+  if(key === 'due') return c.dueDate || '';
+  return '';
+}
+function sortTableBy(key){
+  if(tableSortKey === key){ tableSortDir *= -1; }
+  else { tableSortKey = key; tableSortDir = 1; }
+  renderTablePanel();
+}
 function renderTablePanel(){
   const wrap = document.getElementById('tablePanel');
   if(!wrap) return;
-  const active = cards.filter(c=>!c.archived).slice().sort((a,b)=>
-    (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99'));
+  const active = cards.filter(c=>!c.archived).slice().sort((a,b)=>{
+    // Undated cards always sort to the end regardless of direction, so
+    // flipping to descending surfaces the soonest-overdue first instead of
+    // burying every real date under a pile of blanks.
+    if(tableSortKey === 'due'){
+      const ad = a.dueDate || null, bd = b.dueDate || null;
+      if(!ad && !bd) return 0;
+      if(!ad) return 1;
+      if(!bd) return -1;
+    }
+    const av = tableSortValue(a, tableSortKey), bv = tableSortValue(b, tableSortKey);
+    return av < bv ? -tableSortDir : av > bv ? tableSortDir : 0;
+  });
   if(!active.length){
     wrap.innerHTML = `<div class="archive-empty">No cards on this board yet.</div>`;
     return;
@@ -2088,7 +2125,10 @@ function renderTablePanel(){
   const boardLbls = boardLabels();
   wrap.innerHTML = `
     <table class="jobs-table">
-      <thead><tr><th>Card</th><th>List</th><th>Labels</th><th>Members</th><th>Due date</th></tr></thead>
+      <thead><tr>${TABLE_COLUMNS.map(col=>`
+        <th class="sortable${tableSortKey===col.key?' sorted':''}" onclick="sortTableBy('${col.key}')">
+          ${col.label}${tableSortKey===col.key ? `<span class="sort-arrow">${tableSortDir===1?'▲':'▼'}</span>` : ''}
+        </th>`).join('')}</tr></thead>
       <tbody>
         ${active.map(c=>{
           const l = listById(c.listId);
