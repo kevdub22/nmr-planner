@@ -195,6 +195,96 @@
     margin-bottom:18px; flex-wrap:wrap; gap:10px;
   }
   .toolbar-actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+
+  /* Views switcher (Board / Table / Calendar) — icon-only trigger, no label */
+  .view-switch-btn{
+    display:inline-flex; align-items:center; gap:4px; flex-shrink:0;
+    background:var(--gray-bg); border:1px solid var(--gray-border); border-radius:7px;
+    padding:7px 9px; color:var(--navy);
+    cursor:pointer; font-family:inherit;
+  }
+  .view-switch-btn:hover{border-color:var(--teal);}
+  .view-switch-btn svg{display:block;}
+  .view-switch-chevron{font-size:9px; opacity:0.7;}
+  .view-switch-panel{width:270px;}
+  .view-opt{
+    display:flex; align-items:flex-start; gap:10px; width:100%; text-align:left;
+    background:none; border:none; cursor:pointer; border-radius:7px;
+    padding:9px 8px; font-family:inherit;
+  }
+  .view-opt:hover{background:var(--gray-bg);}
+  .view-opt.active{background:var(--teal-light);}
+  .view-opt-icon{color:var(--navy); display:flex; align-items:center; padding-top:2px;}
+  .view-opt-text{display:flex; flex-direction:column;}
+  .view-opt-title{font-size:13px; font-weight:700; color:var(--navy);}
+  .view-opt-desc{font-size:11.5px; color:var(--gray-text); margin-top:1px;}
+
+  /* Table view */
+  .table-panel{overflow-x:auto;}
+  .jobs-table{width:100%; border-collapse:collapse; background:var(--white); border-radius:var(--radius); overflow:hidden; box-shadow:0 0 0 1px var(--gray-border);}
+  .jobs-table th{
+    text-align:left; font-size:11px; font-weight:700; color:var(--gray-text);
+    text-transform:uppercase; letter-spacing:0.4px;
+    padding:10px 14px; border-bottom:1px solid var(--gray-border); background:#f7f8fa;
+    white-space:nowrap;
+  }
+  .jobs-table td{padding:10px 14px; border-bottom:1px solid var(--gray-border); font-size:13px; vertical-align:middle;}
+  .jobs-table tbody tr{cursor:pointer;}
+  .jobs-table tbody tr:hover{background:var(--gray-bg);}
+  .jobs-table tbody tr:last-child td{border-bottom:none;}
+  .table-card-title{font-weight:600; color:#1c2431; max-width:340px;}
+  .table-due{white-space:nowrap; color:#1c2431;}
+  .table-due.due-over{color:var(--red); font-weight:700;}
+  .table-due.due-soon{color:#8a6100; font-weight:700;}
+  .table-dash{color:#c2c8d1;}
+  .jobs-table .avatar{margin-left:0; margin-right:2px;}
+  .jobs-table .pcard-label{display:inline-block; margin:1px 3px 1px 0;}
+
+  /* Calendar view */
+  .calendar-panel{display:flex; flex-direction:column; flex:1; min-height:0;}
+  .cal-toolbar{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;}
+  .cal-title{font-size:18px; font-weight:700; color:var(--navy); font-family:'Instrument Sans', var(--font);}
+  .cal-nav{display:flex; align-items:center; gap:6px;}
+  .cal-nav-btn, .cal-today-btn{
+    background:var(--white); border:1px solid var(--gray-border); border-radius:6px; cursor:pointer;
+    padding:6px 11px; font-size:13px; font-weight:600; color:var(--navy); font-family:inherit;
+  }
+  .cal-nav-btn:hover, .cal-today-btn:hover{border-color:var(--teal);}
+  .cal-grid{
+    flex:1; display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:minmax(96px,1fr);
+    gap:1px; background:var(--gray-border);
+    border:1px solid var(--gray-border); border-radius:var(--radius); overflow:hidden;
+  }
+  .cal-dow{
+    background:#f7f8fa; padding:7px 10px; font-size:11px; font-weight:700; color:var(--gray-text);
+    text-transform:uppercase; letter-spacing:0.4px; grid-row:1;
+  }
+  .cal-day{background:var(--white); padding:6px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;}
+  .cal-day.cal-muted{background:#fafbfc;}
+  .cal-day.cal-today{background:#eef8fb;}
+  .cal-day-num{font-size:12px; font-weight:700; color:#1c2431; flex-shrink:0;}
+  .cal-day.cal-muted .cal-day-num{color:#c2c8d1;}
+  .cal-day.cal-today .cal-day-num{color:var(--teal);}
+  .cal-entry-card{
+    display:block; width:100%; text-align:left;
+    background:var(--gray-bg); border:none; border-left:3px solid var(--teal);
+    border-radius:3px; padding:3px 6px; font-size:11px; color:#1c2431;
+    cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-family:inherit;
+  }
+  .cal-entry-card:hover{background:var(--teal-light);}
+  .cal-entry-card.cal-overdue{border-left-color:var(--red); color:var(--red);}
+  .cal-entry-item{display:flex; align-items:flex-start; gap:5px; padding:2px 2px;}
+  .cal-entry-item input[type=checkbox]{width:13px; height:13px; margin:2px 0 0 0; accent-color:var(--navy); cursor:pointer; flex-shrink:0;}
+  .cal-entry-text{min-width:0; overflow:hidden;}
+  .cal-entry-item-text{display:block; font-size:11px; color:#1c2431; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cal-entry-item.cal-done .cal-entry-item-text{text-decoration:line-through; color:var(--gray-text);}
+  .cal-entry-card-link{
+    display:block; width:100%; text-align:left; background:none; border:none; padding:0;
+    font-size:10px; color:var(--teal); text-decoration:underline; cursor:pointer; font-family:inherit;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+
   .empty-state{text-align:center; padding:50px 20px; color:var(--gray-text);}
   .empty-state .big{font-size:15px; font-weight:700; color:var(--navy); margin-bottom:6px;}
 
@@ -1187,7 +1277,8 @@
     <div id="view-board" style="display:none;" class="board-wrap">
       <div class="toolbar">
         <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-          <input class="board-title-input" id="boardTitleInput" onblur="renameBoard(this.value)" onkeydown="if(event.key==='Enter') this.blur()">
+          <input class="board-title-input" id="boardTitleInput" oninput="autoResizeBoardTitle(this)" onblur="renameBoard(this.value)" onkeydown="if(event.key==='Enter') this.blur()">
+          <button class="view-switch-btn" id="viewSwitchBtn" onclick="openViewSwitcher(event)" title="Change view"></button>
         </div>
         <div class="toolbar-actions">
           <input type="text" id="boardSearch" placeholder="Search cards..." oninput="applySearch()">
@@ -1198,6 +1289,8 @@
         </div>
       </div>
       <div class="lanes" id="lanes"></div>
+      <div class="table-panel" id="tablePanel" style="display:none;"></div>
+      <div class="calendar-panel" id="calendarPanel" style="display:none;"></div>
       <div class="archive-panel" id="archivePanel" style="display:none;"></div>
     </div>
 
@@ -1467,7 +1560,7 @@ function watchGlobal(){
       if(!b){ goHome(); showToast("This board was deleted"); }
       else {
         const input = document.getElementById('boardTitleInput');
-        if(input && document.activeElement !== input) input.value = b.name || '';
+        if(input && document.activeElement !== input){ input.value = b.name || ''; autoResizeBoardTitle(input); }
         if(openCardId) renderCardModal();
         // Label/color/custom-field edits live on the board doc, not a card or
         // list doc, so the lane view needs its own nudge here — otherwise a
@@ -1512,7 +1605,9 @@ function openBoard(id){
   }, err=>console.error(err));
 
   const b = boardById(id);
-  document.getElementById('boardTitleInput').value = b ? (b.name||'') : '';
+  const titleInput = document.getElementById('boardTitleInput');
+  titleInput.value = b ? (b.name||'') : '';
+  autoResizeBoardTitle(titleInput);
   switchView('board');
   renderNav();
 }
@@ -1708,8 +1803,17 @@ function renameBoard(name){
   name = (name||'').trim();
   const b = boardById(currentBoardId);
   if(!b) return;
-  if(!name || name === b.name){ document.getElementById('boardTitleInput').value = b.name||''; return; }
+  if(!name || name === b.name){
+    const input = document.getElementById('boardTitleInput');
+    input.value = b.name||'';
+    autoResizeBoardTitle(input);
+    return;
+  }
   boardsRef().doc(currentBoardId).update({name, updatedAt:new Date().toISOString()});
+}
+function autoResizeBoardTitle(el){
+  if(!el) return;
+  el.style.width = Math.max(2, el.value.length) + 'ch';
 }
 async function deleteBoard(id){
   const b = boardById(id);
@@ -1906,7 +2010,7 @@ function cardFrontHtml(c){
    'billing' and 'completed' are the same mechanism as a plain archive, just
    tagged with why it left the board, so the archive view can show that at a
    glance instead of every card looking identical. */
-let boardSubView = 'lanes'; // 'lanes' | 'archive'
+let boardSubView = 'lanes'; // 'lanes' | 'table' | 'calendar' | 'archive'
 
 function toggleArchiveView(){
   boardSubView = boardSubView === 'archive' ? 'lanes' : 'archive';
@@ -1920,6 +2024,178 @@ function updateArchiveToggleBtn(){
   const n = cards.filter(c=>c.archived).length;
   btn.textContent = boardSubView === 'archive' ? '← Back to Board' : `🗄 Archive${n ? ` (${n})` : ''}`;
   btn.classList.toggle('active', boardSubView === 'archive');
+}
+
+/* ---------------- Views switcher (Board / Table / Calendar) ----------------
+   Same append-to-body mini-popover convention as Members/Dates/List Actions.
+   Icons are inline SVG (stroke="currentColor") rather than emoji, so they're
+   a single flat color that follows the button's own text color instead of
+   each rendering in its own multicolor glyph. */
+const VIEW_ICONS = {
+  lanes: `<svg width="15" height="15" viewBox="0 0 20 20" fill="none"><rect x="2" y="3" width="4.5" height="14" rx="1.3" stroke="currentColor" stroke-width="1.6"/><rect x="7.75" y="3" width="4.5" height="14" rx="1.3" stroke="currentColor" stroke-width="1.6"/><rect x="13.5" y="3" width="4.5" height="14" rx="1.3" stroke="currentColor" stroke-width="1.6"/></svg>`,
+  table: `<svg width="15" height="15" viewBox="0 0 20 20" fill="none"><rect x="2" y="3" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><line x1="2" y1="8" x2="18" y2="8" stroke="currentColor" stroke-width="1.6"/><line x1="9.3" y1="3" x2="9.3" y2="17" stroke="currentColor" stroke-width="1.6"/></svg>`,
+  calendar: `<svg width="15" height="15" viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="13" rx="2" stroke="currentColor" stroke-width="1.6"/><line x1="2" y1="8.3" x2="18" y2="8.3" stroke="currentColor" stroke-width="1.6"/><line x1="6" y1="2" x2="6" y2="5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="14" y1="2" x2="14" y2="5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`
+};
+const BOARD_VIEWS = [
+  {id:'lanes',    title:'Board',    desc:'Cards grouped into lists'},
+  {id:'table',    title:'Table',    desc:'All cards in a spreadsheet-style list'},
+  {id:'calendar', title:'Calendar', desc:'Cards and checklist items by due date'}
+];
+let viewSwitchEl = null;
+function closeViewSwitcher(){
+  if(viewSwitchEl){ viewSwitchEl.remove(); viewSwitchEl = null; }
+}
+function openViewSwitcher(evt){
+  evt.stopPropagation();
+  closeViewSwitcher(); closeMembersPopover(); closeDatesPopover(); closeListActionsMenu();
+  const pop = document.createElement('div');
+  pop.className = 'mini-popover view-switch-panel';
+  pop.innerHTML = `
+    <div class="mp-head">Views<button class="cm-icon-btn" onclick="closeViewSwitcher()">✕</button></div>
+    ${BOARD_VIEWS.map(v=>`
+      <button type="button" class="view-opt${boardSubView===v.id?' active':''}" onclick="setBoardView('${v.id}')">
+        <span class="view-opt-icon">${VIEW_ICONS[v.id]}</span>
+        <span class="view-opt-text"><span class="view-opt-title">${v.title}</span><span class="view-opt-desc">${v.desc}</span></span>
+      </button>`).join('')}
+  `;
+  viewSwitchEl = pop;
+  positionPopover(pop, evt.currentTarget);
+}
+function setBoardView(view){
+  boardSubView = view;
+  closeViewSwitcher();
+  closeCardMenu();
+  scheduleBoardRender();
+}
+function updateViewSwitchBtn(){
+  const btn = document.getElementById('viewSwitchBtn');
+  if(!btn) return;
+  const v = BOARD_VIEWS.find(x=>x.id === boardSubView) || BOARD_VIEWS[0];
+  btn.innerHTML = `${VIEW_ICONS[v.id]}<span class="view-switch-chevron">⌄</span>`;
+  btn.title = v.title;
+}
+
+/* ---------------- Table view ---------------- */
+function renderTablePanel(){
+  const wrap = document.getElementById('tablePanel');
+  if(!wrap) return;
+  const active = cards.filter(c=>!c.archived).slice().sort((a,b)=>
+    (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99'));
+  if(!active.length){
+    wrap.innerHTML = `<div class="archive-empty">No cards on this board yet.</div>`;
+    return;
+  }
+  const boardLbls = boardLabels();
+  wrap.innerHTML = `
+    <table class="jobs-table">
+      <thead><tr><th>Card</th><th>List</th><th>Labels</th><th>Members</th><th>Due date</th></tr></thead>
+      <tbody>
+        ${active.map(c=>{
+          const l = listById(c.listId);
+          const cardLabels = boardLbls.filter(x=>(c.labelIds||[]).includes(x.id));
+          const memberAvatars = (c.memberIds||[]).map(id=>{
+            const m = memberById(id);
+            return m ? `<span class="avatar" style="background:${escAttr(m.color)}" title="${escAttr(m.name)}">${escAttr(m.initials)}</span>` : '';
+          }).join('');
+          const dc = dueClass(c.dueDate);
+          const due = c.dueDate ? `<span class="table-due${dc ? ' '+dc : ''}">🕐 ${fmtShortDate(c.dueDate)}</span>` : `<span class="table-dash">–</span>`;
+          return `<tr onclick="openCardModal('${c.id}')">
+            <td class="table-card-title">${escHtml(c.title||'Untitled')}</td>
+            <td>${escHtml(l ? l.name : '')}</td>
+            <td>${cardLabels.length ? cardLabels.map(x=>`<span class="pcard-label" style="background:${escAttr(x.color)}; color:${labelTextColor(x.color)}">${escHtml(x.name||'Unnamed')}</span>`).join('') : `<span class="table-dash">·</span>`}</td>
+            <td>${memberAvatars || `<span class="table-dash">·</span>`}</td>
+            <td>${due}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+/* ---------------- Calendar view ----------------
+   Plots two kinds of entries per day: cards on their due date (falling back
+   to start date if no due date is set), and individual checklist items on
+   their own due date — mirroring how the Dates popover already treats those
+   as the two places a date can live on a card. */
+let calendarYear = new Date().getFullYear();
+let calendarMonth = new Date().getMonth();
+function calYmd(y,m,d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+function calNavMonth(delta){
+  let m = calendarMonth + delta, y = calendarYear;
+  if(m < 0){ m = 11; y--; }
+  if(m > 11){ m = 0; y++; }
+  calendarMonth = m; calendarYear = y;
+  renderCalendarPanel();
+}
+function calGoToday(){
+  const t = new Date();
+  calendarYear = t.getFullYear(); calendarMonth = t.getMonth();
+  renderCalendarPanel();
+}
+function renderCalendarPanel(){
+  const wrap = document.getElementById('calendarPanel');
+  if(!wrap) return;
+  const active = cards.filter(c=>!c.archived);
+  const byDay = {};
+  active.forEach(c=>{
+    const day = c.dueDate || c.startDate;
+    if(day) (byDay[day] = byDay[day]||[]).push({type:'card', card:c});
+    (c.checklist||[]).forEach(item=>{
+      if(item.due) (byDay[item.due] = byDay[item.due]||[]).push({type:'item', card:c, item});
+    });
+  });
+
+  const y = calendarYear, m = calendarMonth;
+  const first = new Date(y, m, 1);
+  const startDow = first.getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const daysInPrevMonth = new Date(y, m, 0).getDate();
+  const monthLabel = first.toLocaleDateString('en-US', {month:'long', year:'numeric'});
+  const today = new Date();
+  const todayYmd = calYmd(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const cells = [];
+  for(let i=startDow-1; i>=0; i--) cells.push({day: daysInPrevMonth-i, muted:true});
+  for(let d=1; d<=daysInMonth; d++) cells.push({day:d, muted:false, ymd: calYmd(y,m,d)});
+  let trailing = 1;
+  while(cells.length % 7 !== 0) cells.push({day: trailing++, muted:true});
+  const dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  wrap.innerHTML = `
+    <div class="cal-toolbar">
+      <div class="cal-title">${monthLabel}</div>
+      <div class="cal-nav">
+        <button type="button" class="cal-nav-btn" onclick="calNavMonth(-1)">‹</button>
+        <button type="button" class="cal-today-btn" onclick="calGoToday()">Today</button>
+        <button type="button" class="cal-nav-btn" onclick="calNavMonth(1)">›</button>
+      </div>
+    </div>
+    <div class="cal-grid">
+      ${dows.map(d=>`<div class="cal-dow">${d}</div>`).join('')}
+      ${cells.map(cell=>{
+        if(cell.muted) return `<div class="cal-day cal-muted"><div class="cal-day-num">${cell.day}</div></div>`;
+        const entries = byDay[cell.ymd] || [];
+        const isToday = cell.ymd === todayYmd;
+        return `<div class="cal-day${isToday?' cal-today':''}">
+          <div class="cal-day-num">${cell.day}</div>
+          ${entries.map(e=>{
+            if(e.type === 'card'){
+              const overdue = e.card.dueDate && dueClass(e.card.dueDate) === 'due-over';
+              return `<button type="button" class="cal-entry-card${overdue?' cal-overdue':''}" onclick="openCardModal('${e.card.id}')" title="${escAttr(e.card.title||'')}">${escHtml(e.card.title||'Untitled')}</button>`;
+            }
+            const idx = (e.card.checklist||[]).findIndex(x=>x.id === e.item.id);
+            return `<div class="cal-entry-item${e.item.done?' cal-done':''}">
+              <input type="checkbox" ${e.item.done?'checked':''} onchange="toggleCheckItem('${e.card.id}',${idx})">
+              <span class="cal-entry-text">
+                <span class="cal-entry-item-text" title="${escAttr(e.item.text)}">${escHtml(e.item.text)}</span>
+                <button type="button" class="cal-entry-card-link" onclick="openCardModal('${e.card.id}')" title="${escAttr(e.card.title||'')}">${escHtml(e.card.title||'Untitled')}</button>
+              </span>
+            </div>`;
+          }).join('')}
+        </div>`;
+      }).join('')}
+    </div>
+  `;
 }
 
 function renderArchivePanel(){
@@ -1993,18 +2269,43 @@ function restoreCard(cardId){
 function renderBoard(){
   const wrap = document.getElementById('lanes');
   const archiveWrap = document.getElementById('archivePanel');
+  const tableWrap = document.getElementById('tablePanel');
+  const calWrap = document.getElementById('calendarPanel');
   if(!currentBoardId){ wrap.innerHTML = ''; archiveWrap.innerHTML = ''; return; }
   updateArchiveToggleBtn();
+  updateViewSwitchBtn();
 
   if(boardSubView === 'archive'){
     wrap.style.display = 'none';
+    tableWrap.style.display = 'none';
+    calWrap.style.display = 'none';
     archiveWrap.style.display = '';
     document.getElementById('boardSearch').style.visibility = 'hidden';
     renderArchivePanel();
     return;
   }
+  if(boardSubView === 'table'){
+    wrap.style.display = 'none';
+    archiveWrap.style.display = 'none';
+    calWrap.style.display = 'none';
+    tableWrap.style.display = '';
+    document.getElementById('boardSearch').style.visibility = 'hidden';
+    renderTablePanel();
+    return;
+  }
+  if(boardSubView === 'calendar'){
+    wrap.style.display = 'none';
+    archiveWrap.style.display = 'none';
+    tableWrap.style.display = 'none';
+    calWrap.style.display = '';
+    document.getElementById('boardSearch').style.visibility = 'hidden';
+    renderCalendarPanel();
+    return;
+  }
   wrap.style.display = '';
   archiveWrap.style.display = 'none';
+  tableWrap.style.display = 'none';
+  calWrap.style.display = 'none';
   document.getElementById('boardSearch').style.visibility = '';
 
   const collapsed = collapsedLists();
@@ -2495,6 +2796,7 @@ document.addEventListener('click', e=>{
   if(membersPopoverEl && !clickWasInside(e, membersPopoverEl)) closeMembersPopover();
   if(datesPopoverEl && !clickWasInside(e, datesPopoverEl)) closeDatesPopover();
   if(listActionsEl && !clickWasInside(e, listActionsEl)) closeListActionsMenu();
+  if(viewSwitchEl && !clickWasInside(e, viewSwitchEl)) closeViewSwitcher();
 });
 
 // #cardModal itself is never replaced (only its innerHTML, on every render),
@@ -2518,6 +2820,7 @@ document.addEventListener('keydown', e=>{
     else if(membersPopoverEl) closeMembersPopover();
     else if(datesPopoverEl) closeDatesPopover();
     else if(listActionsEl) closeListActionsMenu();
+    else if(viewSwitchEl) closeViewSwitcher();
     else if(menu && !menu.hidden) closeCardMenu();
     else if(openCardId) closeCardModal();
   }
