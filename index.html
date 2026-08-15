@@ -1844,6 +1844,8 @@ function cardFrontHtml(c){
     badges.push(`<span class="pbadge ${done===cl.length?'check-done':''}">☑ ${done}/${cl.length}</span>`);
   }
   if(descToText(c.desc)) badges.push(`<span class="pbadge" title="Has description">≡</span>`);
+  const links = c.attachments || [];
+  if(links.length) badges.push(`<span class="pbadge" title="${links.length} link${links.length===1?'':'s'}">🔗 ${links.length}</span>`);
   const comments = c.comments || [];
   if(comments.length) badges.push(`<span class="pbadge">💬 ${comments.length}</span>`);
 
