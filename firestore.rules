@@ -66,6 +66,11 @@ service cloud.firestore {
         && (request.auth.uid == memberId || resource.data.isPlaceholder == true);
     }
 
+    // Assignment alerts. Same permissive terms as the rest of the planner's
+    // collections (any staff member can write) — recipientId just tells the
+    // client who a given alert is for, it isn't an access boundary here.
+    match /notifications/{notificationId} { allow read, write: if isStaff(); }
+
     // Anything not named above is denied outright, so a collection added
     // later fails closed rather than being world-writable by default.
     match /{document=**} {
