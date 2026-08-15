@@ -111,55 +111,6 @@
   .nav-sub.active{color:var(--teal); font-weight:700;}
   .sidebar-footer{padding:16px 20px; font-size:11px; color:rgba(255,255,255,0.4);}
   .nav-links{display:flex; flex-direction:column; flex:1;}
-  /* Fixed to the viewport, not the sidebar/toolbar, so it — and its unread
-     count — stay in the same top-right spot across every view, over the
-     mobile drawer, regardless of scroll. */
-  .notif-bell{
-    position:fixed; top:calc(16px + env(safe-area-inset-top)); right:20px; z-index:250;
-    background:var(--white); border:1px solid var(--gray-border); cursor:pointer;
-    color:var(--navy);
-    width:38px; height:38px; border-radius:50%;
-    display:flex; align-items:center; justify-content:center;
-    font-size:16px; line-height:1;
-    box-shadow:0 2px 10px rgba(8,31,66,0.14);
-  }
-  .notif-bell:hover{background:var(--gray-bg);}
-  .notif-badge{
-    position:absolute; top:-3px; right:-3px;
-    background:var(--red); color:var(--white);
-    font-size:10px; font-weight:800; line-height:1;
-    min-width:16px; height:16px; border-radius:8px;
-    display:flex; align-items:center; justify-content:center;
-    padding:0 3px; border:2px solid var(--white);
-  }
-  .notif-badge[hidden]{display:none;}
-  .notif-panel{width:320px; max-height:70vh; display:flex; flex-direction:column; padding:0;}
-  /* .notif-panel's own display:flex ties the [hidden] UA rule on specificity
-     and wins the cascade (author beats user-agent), so the popup rendered
-     visible regardless of the hidden attribute/property — this is what
-     actually forced it open and unclosable. Needs the attribute in the
-     selector to out-specify the class rule above. */
-  .notif-panel[hidden]{display:none;}
-  .notif-panel .mp-head{padding:14px 14px 10px 14px; margin-bottom:0;}
-  .notif-list{overflow-y:auto; flex:1;}
-  .notif-row{
-    display:block; width:100%; text-align:left;
-    background:none; border:none; cursor:pointer;
-    padding:10px 14px; border-top:1px solid var(--gray-border);
-    font-family:inherit;
-  }
-  .notif-row:hover{background:var(--gray-bg);}
-  .notif-row.unread{background:#f2f8fb;}
-  .notif-row.unread:hover{background:#e9f3f8;}
-  .notif-text{font-size:12.5px; color:#1c2431; line-height:1.5;}
-  .notif-when{font-size:11px; color:var(--gray-text); margin-top:2px;}
-  .notif-mark-all{
-    width:100%; text-align:center; border-top:1px solid var(--gray-border);
-    background:none; border-left:none; border-right:none; border-bottom:none;
-    padding:10px; font-size:12px; font-weight:700; color:var(--teal);
-    cursor:pointer; font-family:inherit;
-  }
-  .notif-mark-all:hover{background:var(--gray-bg);}
   .hamburger-btn{
     display:none;
     flex-direction:column;
@@ -1142,9 +1093,6 @@
     }
     .brand{padding:0; margin:0; border-bottom:none; flex-shrink:0;}
     .brand-logo{width:110px;}
-    /* Clears the hamburger button, which also sits at the top-right edge
-       on this layout — otherwise the two overlap. */
-    .notif-bell{top:calc(8px + env(safe-area-inset-top)); right:60px;}
     .hamburger-btn{display:flex;}
     .nav-links{
       position:fixed; top:0; right:0; height:100%;
@@ -1197,14 +1145,6 @@
         </g>
       </svg>
     </div>
-    <button class="notif-bell" id="notifBell" onclick="toggleNotifPanel(event)" title="Notifications" aria-label="Notifications">
-      🔔<span class="notif-badge" id="notifBadge" hidden>0</span>
-    </button>
-    <div class="mini-popover notif-panel" id="notifPanelWrap" hidden>
-      <div class="mp-head">Notifications<button class="cm-icon-btn" onclick="closeNotifPanel()">✕</button></div>
-      <div class="notif-list" id="notifList"></div>
-      <button class="notif-mark-all" id="notifMarkAll" onclick="markAllNotifsRead()" hidden>Mark all as read</button>
-    </div>
     <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menu" aria-expanded="false">
       <span class="hamburger-line"></span>
       <span class="hamburger-line"></span>
@@ -1252,6 +1192,7 @@
         <div class="toolbar-actions">
           <input type="text" id="boardSearch" placeholder="Search cards..." oninput="applySearch()">
           <button class="btn btn-ghost btn-sm" id="archiveBtn" onclick="toggleArchiveView()">🗄 Archive</button>
+          <button class="btn btn-ghost btn-sm" id="myJobsBtn" onclick="toggleMyJobsFilter()" title="Show only cards assigned to you">👤 My Jobs</button>
           <button class="btn btn-ghost btn-sm" onclick="switchView('members')">Members</button>
           <button class="btn btn-ghost btn-sm" onclick="goHome()">All Boards</button>
         </div>
@@ -1432,11 +1373,7 @@ let unsubLists = null, unsubCards = null;
 let openCardId = null;
 let currentView = 'boards';
 let membersReturnTo = 'boards';
-let notifications = [];
-// Set right before switching boards to open a card that lives elsewhere —
-// the target board's cards haven't loaded yet, so the open happens once its
-// snapshot listener sees the card for the first time (see openBoard()).
-let pendingOpenCardId = null;
+let myJobsFilter = false;
 
 const MEMBER_COLORS = ['#47b2cc','#1e8a5f','#e07b39','#8e6bb8','#c0392b','#17305e','#b8860b','#2e8b8b'];
 /* Per-board custom fields. Stored on the board so every card shares one
@@ -1548,16 +1485,6 @@ function watchGlobal(){
     if(currentView === 'board') scheduleBoardRender();
     if(openCardId) renderCardModal();
   }, err=>console.error(err));
-
-  const me = myMemberId();
-  if(me){
-    db.collection('notifications').where('recipientId','==', me).onSnapshot(snap=>{
-      notifications = snap.docs.map(d=>({id:d.id, ...d.data()}));
-      notifications.sort((a,b)=> (b.at||0) - (a.at||0));
-      renderNotifBell();
-      if(notifPanelOpen) renderNotifPanel();
-    }, err=>console.error(err));
-  }
 }
 
 function openBoard(id){
@@ -1581,11 +1508,6 @@ function openBoard(id){
     if(openCardId){
       if(!cardById(openCardId)){ closeCardModal(); showToast("This card was deleted"); }
       else renderCardModal();
-    }
-    if(pendingOpenCardId && cardById(pendingOpenCardId)){
-      const pid = pendingOpenCardId;
-      pendingOpenCardId = null;
-      openCardModal(pid);
     }
   }, err=>console.error(err));
 
@@ -2298,26 +2220,30 @@ function toggleCollapse(listId){
 /* ---------------- Search ---------------- */
 function applySearch(){
   const q = (document.getElementById('boardSearch')?.value || '').trim().toLowerCase();
+  const me = myMemberId();
   document.querySelectorAll('.pcard').forEach(el=>{
-    if(!q){ el.classList.remove('search-hidden'); return; }
     const c = cardById(el.dataset.cardId);
     if(!c){ return; }
-    const labelNames = boardLabels().filter(l=>(c.labelIds||[]).includes(l.id)).map(l=>l.name||'').join(' ');
-    const memberNames = (c.memberIds||[]).map(id=>{ const m = memberById(id); return m ? m.name + ' ' + m.initials : ''; }).join(' ');
-    const cfVals = c.fields || {};
-    const fieldText = boardCustomFields().map(f=>{
-      const v = cfVals[f.id];
-      if(v == null || v === '' || v === false) return '';
-      if(f.type === 'dropdown'){
-        const opt = (f.options||[]).find(o=>o.id === v);
-        return opt ? f.name + ' ' + opt.label : '';
-      }
-      if(f.type === 'checkbox') return f.name;
-      return f.name + ' ' + v;
-    }).join(' ');
-    const checklistText = (c.checklist||[]).map(i=>i.text).join(' ');
-    const hay = [c.title, descToText(c.desc), labelNames, memberNames, fieldText, checklistText].join(' ').toLowerCase();
-    el.classList.toggle('search-hidden', !hay.includes(q));
+    let visible = !myJobsFilter || (c.memberIds||[]).includes(me);
+    if(visible && q){
+      const labelNames = boardLabels().filter(l=>(c.labelIds||[]).includes(l.id)).map(l=>l.name||'').join(' ');
+      const memberNames = (c.memberIds||[]).map(id=>{ const m = memberById(id); return m ? m.name + ' ' + m.initials : ''; }).join(' ');
+      const cfVals = c.fields || {};
+      const fieldText = boardCustomFields().map(f=>{
+        const v = cfVals[f.id];
+        if(v == null || v === '' || v === false) return '';
+        if(f.type === 'dropdown'){
+          const opt = (f.options||[]).find(o=>o.id === v);
+          return opt ? f.name + ' ' + opt.label : '';
+        }
+        if(f.type === 'checkbox') return f.name;
+        return f.name + ' ' + v;
+      }).join(' ');
+      const checklistText = (c.checklist||[]).map(i=>i.text).join(' ');
+      const hay = [c.title, descToText(c.desc), labelNames, memberNames, fieldText, checklistText].join(' ').toLowerCase();
+      visible = hay.includes(q);
+    }
+    el.classList.toggle('search-hidden', !visible);
   });
 }
 
@@ -3125,27 +3051,6 @@ function toggleMember(cardId, memberId){
   cardUpdate(cardId, {memberIds: on
     ? firebase.firestore.FieldValue.arrayRemove(memberId)
     : firebase.firestore.FieldValue.arrayUnion(memberId)});
-  if(!on) notifyAssigned(c, memberId);
-}
-/* Only fires on actually adding someone (not removal), and never for
-   assigning yourself — you already know. Bulk copy/move/duplicate carry
-   memberIds over directly rather than through here, so they don't spam
-   people with a notification for a card that isn't really new work. */
-function notifyAssigned(card, memberId){
-  const me = myMemberId();
-  if(!memberId || memberId === me) return;
-  const byMember = memberById(me);
-  db.collection('notifications').add({
-    recipientId: memberId,
-    type: 'assigned',
-    boardId: currentBoardId,
-    cardId: card.id,
-    cardTitle: card.title || 'Untitled card',
-    byId: me,
-    byName: byMember ? byMember.name : (currentUser ? currentUser.email : 'Someone'),
-    at: Date.now(),
-    read: false
-  }).catch(e=> console.error(e));
 }
 
 /* ---------------- Mini popovers (Members, Dates) ----------------
@@ -4085,88 +3990,16 @@ function signOutNow(){
   auth.signOut().catch(e=>console.error(e));
 }
 
-/* ---------------- Notifications ----------------
-   Card-assignment alerts. In-app only for now: a bell with an unread count,
-   and a popover list — no email/push, so this needs no backend beyond the
-   Firestore write already made in notifyAssigned(). */
-function renderNotifBell(){
-  const badge = document.getElementById('notifBadge');
-  if(!badge) return;
-  const unread = notifications.filter(n=>!n.read).length;
-  badge.hidden = unread === 0;
-  badge.textContent = unread > 9 ? '9+' : String(unread);
+/* ---------------- My Jobs filter ----------------
+   A standing toggle (not tied to any one board) that narrows the open
+   board's lanes down to cards you're a member of, using the same
+   .search-hidden mechanism as the text search box in applySearch(). */
+function toggleMyJobsFilter(){
+  myJobsFilter = !myJobsFilter;
+  const btn = document.getElementById('myJobsBtn');
+  if(btn) btn.classList.toggle('active', myJobsFilter);
+  applySearch();
 }
-function relativeTime(ts){
-  if(!ts) return '';
-  const diff = Date.now() - ts;
-  const min = Math.round(diff/60000);
-  if(min < 1) return 'just now';
-  if(min < 60) return `${min}m ago`;
-  const hr = Math.round(min/60);
-  if(hr < 24) return `${hr}h ago`;
-  const day = Math.round(hr/24);
-  if(day < 7) return `${day}d ago`;
-  return new Date(ts).toLocaleDateString('en-US', {month:'short', day:'numeric'});
-}
-let notifPanelOpen = false;
-function renderNotifPanel(){
-  const list = document.getElementById('notifList');
-  if(!list) return;
-  list.innerHTML = notifications.length
-    ? notifications.map(n=>`
-      <button class="notif-row${n.read?'':' unread'}" onclick="openNotification('${n.id}')">
-        <div class="notif-text"><b>${escHtml(n.byName||'Someone')}</b> assigned you to <b>${escHtml(n.cardTitle||'a card')}</b></div>
-        <div class="notif-when">${relativeTime(n.at)}</div>
-      </button>`).join('')
-    : `<div class="mp-empty" style="padding:14px;">No notifications yet.</div>`;
-  const markAll = document.getElementById('notifMarkAll');
-  if(markAll) markAll.hidden = !notifications.some(n=>!n.read);
-}
-function toggleNotifPanel(evt){
-  evt.stopPropagation();
-  if(notifPanelOpen){ closeNotifPanel(); return; }
-  notifPanelOpen = true;
-  renderNotifPanel();
-  const panel = document.getElementById('notifPanelWrap');
-  panel.hidden = false;
-  const r = document.getElementById('notifBell').getBoundingClientRect();
-  panel.style.position = 'fixed';
-  panel.style.top = (r.bottom + 6) + 'px';
-  panel.style.left = Math.max(8, r.left) + 'px';
-}
-function closeNotifPanel(){
-  notifPanelOpen = false;
-  const panel = document.getElementById('notifPanelWrap');
-  if(panel) panel.hidden = true;
-}
-function markAllNotifsRead(){
-  const unread = notifications.filter(n=>!n.read);
-  if(!unread.length) return;
-  const batch = db.batch();
-  unread.forEach(n=> batch.update(db.collection('notifications').doc(n.id), {read:true}));
-  batch.commit().catch(e=>console.error(e));
-}
-function openNotification(id){
-  const n = notifications.find(x=>x.id === id);
-  if(!n) return;
-  if(!n.read) db.collection('notifications').doc(id).update({read:true}).catch(e=>console.error(e));
-  closeNotifPanel();
-  if(!n.cardId || !n.boardId) return;
-  if(currentBoardId === n.boardId){
-    openCardModal(n.cardId);
-  } else {
-    pendingOpenCardId = n.cardId;
-    openBoard(n.boardId);
-  }
-}
-document.addEventListener('click', e=>{
-  const panel = document.getElementById('notifPanelWrap');
-  const bell = document.getElementById('notifBell');
-  if(notifPanelOpen && panel && !clickWasInside(e, panel) && !clickWasInside(e, bell)) closeNotifPanel();
-});
-document.addEventListener('keydown', e=>{
-  if(e.key === 'Escape' && notifPanelOpen) closeNotifPanel();
-});
 
 function renderMe(){
   const box = document.getElementById('meBox');
