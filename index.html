@@ -556,6 +556,13 @@
     position:fixed; inset:0; background:rgba(12,20,35,0.45);
     display:none; align-items:flex-start; justify-content:center;
     z-index:1000; padding:40px 20px; overflow-y:auto;
+    /* Stops scroll chaining out to the page behind once this backdrop (or a
+       scrollable region inside the modal, like .cm-main) hits its own scroll
+       limit — without it, scrolling past the end of a long card scrolled the
+       board behind it too. Belt-and-suspenders with the body-scroll-lock in
+       lockBodyScroll()/unlockBodyScroll(), since overscroll-behavior support
+       varies slightly by browser. */
+    overscroll-behavior:contain;
   }
   .modal-backdrop.open{display:flex;}
   .modal{
@@ -685,12 +692,13 @@
   .archive-badge.reason-billing{background:#cfe9f8; color:#0c4a6e;}
   .archive-badge.reason-completed{background:#b7e4c7; color:#14532d;}
   .archive-badge.reason-manual{background:#e2e5ea; color:#3a4250;}
-  .cm-main{padding:14px 24px 24px 24px; min-width:0; overflow-y:auto;}
+  .cm-main{padding:14px 24px 24px 24px; min-width:0; overflow-y:auto; overscroll-behavior:contain;}
   .cm-side{
     background:var(--gray-bg);
     border-left:1px solid var(--gray-border);
     padding:20px;
     overflow-y:auto;
+    overscroll-behavior:contain;
   }
   .cm-side-head{
     display:flex; align-items:center; gap:7px;
@@ -1021,7 +1029,13 @@
   .check-item input[type=checkbox]{
     width:15px; height:15px; accent-color:var(--navy); cursor:pointer; flex-shrink:0; margin:0;
   }
-  .check-item .ci-text{flex:1; font-size:13px; min-width:0; word-wrap:break-word;}
+  .check-item .ci-text{
+    flex:1; font-size:13px; min-width:0; word-wrap:break-word;
+    border:1px solid transparent; background:transparent; color:#1c2431;
+    padding:3px 5px; border-radius:4px; font-family:inherit;
+  }
+  .check-item .ci-text:hover{border-color:var(--gray-border);}
+  .check-item .ci-text:focus{background:var(--white); border-color:var(--teal); outline:none;}
   .check-item.done .ci-text{text-decoration:line-through; color:var(--gray-text);}
   .check-add{display:flex; gap:6px; margin-top:6px;}
   .check-add input[type=text]{flex:1; min-width:0;}
@@ -1729,16 +1743,33 @@ function openChooser({title, sub, choices}){
       <div class="mc-desc">${c.desc}</div>
     </button>`).join('');
   document.getElementById('chooserModalBackdrop').classList.add('open');
+  lockBodyScroll('chooser');
 }
 function closeChooser(){
   document.getElementById('chooserModalBackdrop').classList.remove('open');
   chooserHandlers = [];
+  unlockBodyScroll('chooser');
 }
 function pickChooserChoice(i){
   const fn = chooserHandlers[i];
   closeChooser();
   if(fn) fn();
 }
+/* Locks the page behind any open modal-backdrop from scrolling. Tracked as a
+   set rather than a single flag because modals can stack (e.g. Labels opened
+   from inside an open card) — the lock only lifts once every one of them
+   that asked for it has been closed, so closing the inner one doesn't
+   unlock scrolling while the outer one is still up. */
+const scrollLockOwners = new Set();
+function lockBodyScroll(id){
+  scrollLockOwners.add(id);
+  document.body.style.overflow = 'hidden';
+}
+function unlockBodyScroll(id){
+  scrollLockOwners.delete(id);
+  if(scrollLockOwners.size === 0) document.body.style.overflow = '';
+}
+
 /* Close a dialog when the backdrop is clicked — but only when the press both
    started and ended on the backdrop.
 
@@ -1766,11 +1797,13 @@ function openPrompt({title, sub, value, okLabel, onOk}){
   document.getElementById('promptOkBtn').textContent = okLabel || 'OK';
   promptHandler = onOk;
   document.getElementById('promptModalBackdrop').classList.add('open');
+  lockBodyScroll('prompt');
   setTimeout(()=> input.focus(), 50);
 }
 function closePrompt(){
   document.getElementById('promptModalBackdrop').classList.remove('open');
   promptHandler = null;
+  unlockBodyScroll('prompt');
 }
 function confirmPrompt(){
   const v = document.getElementById('promptInput').value.trim();
@@ -3018,12 +3051,14 @@ function openCardModal(id){
   // measuring first would leave a long title collapsed until something else
   // (like typing) happened to re-trigger it.
   document.getElementById('cardModalBackdrop').classList.add('open');
+  lockBodyScroll('card');
   renderCardModal();
 }
 function closeCardModal(){
   openCardId = null;
   closeCardMenu();
   document.getElementById('cardModalBackdrop').classList.remove('open');
+  unlockBodyScroll('card');
 }
 closeOnBackdrop('cardModalBackdrop', closeCardModal);
 
@@ -3107,6 +3142,16 @@ function renderCardModal(){
   const c = cardById(openCardId);
   if(!c) return;
   const modal = document.getElementById('cardModal');
+
+  // The description editor is the one exception to "preserve and restore
+  // focus" below: restoring a contenteditable only ever puts back a
+  // collapsed caret (rtSetCaret has no notion of a selection range), so any
+  // active drag-to-select got silently collapsed by the next re-render —
+  // which arrives ~500ms after the last keystroke, i.e. right when someone
+  // stops typing and tries to select what they wrote. Skipping the render
+  // entirely while it's focused sidesteps that; onblur's own save already
+  // triggers a render once focus (and any live selection) has moved on.
+  if(document.activeElement && document.activeElement.id === 'cmDesc') return;
 
   // Don't yank the field out from under someone mid-keystroke. Rather than
   // skipping the render — which used to strand new checklist items until the
@@ -3258,7 +3303,8 @@ function renderCardModal(){
           <span class="ci-drag-handle" draggable="true" title="Drag to reorder"
             ondragstart="ciDragStart(event,${i})" ondragend="ciDragEnd(event)">&#9776;</span>
           <input type="checkbox" ${item.done?'checked':''} onchange="toggleCheckItem('${c.id}',${i})">
-          <span class="ci-text">${escHtml(item.text)}</span>
+          <input type="text" class="ci-text" value="${escAttr(item.text)}"
+            onblur="renameCheckItem('${c.id}',${i},this.value)" onkeydown="if(event.key==='Enter') this.blur()">
           <input type="date" class="ci-due${item.due && !item.done ? ' ' + dueClass(item.due) : ''}"
             id="ciDue-${i}" value="${escAttr(item.due||'')}" title="Due date for this item"
             onchange="setCheckItemDue('${c.id}',${i},this.value)">
@@ -3837,10 +3883,12 @@ function openLabelsPanel(){
   if(search) search.value = '';
   renderLabelsPanel();
   document.getElementById('labelsModalBackdrop').classList.add('open');
+  lockBodyScroll('labels');
 }
 function closeLabelsPanel(){
   labelEditing = null;
   document.getElementById('labelsModalBackdrop').classList.remove('open');
+  unlockBodyScroll('labels');
 }
 closeOnBackdrop('labelsModalBackdrop', closeLabelsPanel);
 
@@ -3853,9 +3901,11 @@ function openSalesPanel(){
   if(input) input.value = '';
   renderSalesPanel();
   document.getElementById('salesModalBackdrop').classList.add('open');
+  lockBodyScroll('sales');
 }
 function closeSalesPanel(){
   document.getElementById('salesModalBackdrop').classList.remove('open');
+  unlockBodyScroll('sales');
 }
 closeOnBackdrop('salesModalBackdrop', closeSalesPanel);
 
@@ -4103,6 +4153,15 @@ function setCheckItemDue(cardId, i, due){
   const c = cardById(cardId);
   if(!c) return;
   const cl = (c.checklist||[]).map((item,idx)=> idx===i ? {...item, due: due || ''} : item);
+  cardUpdate(cardId, {checklist: cl});
+}
+function renameCheckItem(cardId, i, text){
+  text = (text||'').trim();
+  const c = cardById(cardId);
+  if(!c) return;
+  const item = (c.checklist||[])[i];
+  if(!item || !text || text === item.text){ renderCardModal(); return; }
+  const cl = c.checklist.map((it,idx)=> idx===i ? {...it, text} : it);
   cardUpdate(cardId, {checklist: cl});
 }
 
