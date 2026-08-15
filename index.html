@@ -2601,8 +2601,9 @@ function renderCardModal(){
         <div class="cm-section-col">
           <div class="cm-section-title">Dates</div>
           <div class="member-chips">
-            ${(c.dueDate || c.startDate) ? `<span class="date-chip${dueClass(c.dueDate) ? ' '+dueClass(c.dueDate) : ''}" onclick="openDatesPopover(event,'${c.id}')">${c.startDate ? fmtShortDate(c.startDate) : ''}${c.startDate && c.dueDate ? ' – ' : ''}${c.dueDate ? fmtShortDate(c.dueDate) : ''}</span>` : ''}
-            <button class="label-add" onclick="openDatesPopover(event,'${c.id}')" title="Dates">＋</button>
+            ${(c.dueDate || c.startDate)
+              ? `<span class="date-chip${dueClass(c.dueDate) ? ' '+dueClass(c.dueDate) : ''}" onclick="openDatesPopover(event,'${c.id}')">${c.startDate ? fmtShortDate(c.startDate) : ''}${c.startDate && c.dueDate ? ' – ' : ''}${c.dueDate ? fmtShortDate(c.dueDate) : ''}</span>`
+              : `<button class="label-add" onclick="openDatesPopover(event,'${c.id}')" title="Dates">＋</button>`}
           </div>
         </div>
         <div class="cm-section-col">
