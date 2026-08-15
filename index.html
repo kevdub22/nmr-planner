@@ -1467,6 +1467,11 @@ function watchGlobal(){
         const input = document.getElementById('boardTitleInput');
         if(input && document.activeElement !== input) input.value = b.name || '';
         if(openCardId) renderCardModal();
+        // Label/color/custom-field edits live on the board doc, not a card or
+        // list doc, so the lane view needs its own nudge here — otherwise a
+        // label color change (for example) never reaches the card fronts
+        // until something else happens to trigger a re-render.
+        scheduleBoardRender();
       }
     }
   }, err=>{ console.error(err); setLoading(false); showToast("Couldn't reach Firebase"); });
@@ -3431,6 +3436,7 @@ async function saveLabel(id, isNew){
   await persistLabels(labels);
   renderLabelsPanel();
   if(openCardId) renderCardModal();
+  scheduleBoardRender();
 }
 async function deleteLabel(id){
   const l = boardLabels().find(x=>x.id === id);
@@ -3451,6 +3457,7 @@ async function deleteLabel(id){
   try{ await batch.commit(); }catch(e){ console.error(e); }
   renderLabelsPanel();
   if(openCardId) renderCardModal();
+  scheduleBoardRender();
 }
 function toggleLabelFromPanel(labelId){
   if(!openCardId) return;
