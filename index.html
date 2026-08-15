@@ -292,15 +292,8 @@
   .archive-row-meta{font-size:12px; color:var(--gray-text); display:flex; align-items:center; flex-wrap:wrap; gap:6px;}
   .archive-row-actions{display:flex; gap:6px; flex-shrink:0;}
 
-  .color-menu{
-    position:fixed; z-index:1200;
-    background:var(--white);
-    border:1px solid var(--gray-border);
-    border-radius:9px;
-    box-shadow:0 12px 32px rgba(8,31,66,0.22);
-    padding:10px;
-    display:grid; grid-template-columns:repeat(5, 26px); gap:7px;
-  }
+  .la-color-grid{display:grid; grid-template-columns:repeat(5, 26px); gap:7px; margin-bottom:12px;}
+  .la-delete{width:100%; text-align:left;}
   .color-swatch{
     width:26px; height:26px; border-radius:6px;
     border:2px solid transparent; cursor:pointer; padding:0;
@@ -825,8 +818,8 @@
   .date-chip.due-over{background:#fdeae8; border-color:#f0c8c4; color:var(--red);}
   .date-chip.due-soon{background:#fdf0d5; border-color:#ecd9a8; color:#8a6100;}
 
-  /* Small anchored popovers (Members, Dates) — same positioning convention
-     as .cm-menu / .color-menu: appended to body, placed via getBoundingClientRect
+  /* Small anchored popovers (Members, Dates, List Actions) — same positioning
+     convention as .cm-menu: appended to body, placed via getBoundingClientRect
      in positionPopover(), removed on outside click or Escape. */
   .mini-popover{
     position:fixed; z-index:1200;
@@ -2012,7 +2005,7 @@ function renderBoard(){
       <div class="lane collapsed${colorAttrs}" data-list-id="${l.id}" onclick="toggleCollapse('${l.id}')"
            ondragover="laneDragOver(event,'${l.id}')" ondragleave="laneDragLeave(event)" ondrop="laneDrop(event,'${l.id}')">
         <div class="lane-collapsed-label">
-          <button class="lane-btn" title="Expand" onclick="event.stopPropagation(); toggleCollapse('${l.id}')">»</button>
+          <button class="lane-btn" title="Expand" onclick="event.stopPropagation(); toggleCollapse('${l.id}')">«»</button>
           <div class="lane-collapsed-name">${escHtml(l.name||'List')}</div>
           <span class="lane-count">${listCards.length}</span>
         </div>
@@ -2028,9 +2021,8 @@ function renderBoard(){
         <input class="lane-name-input" value="${escAttr(l.name)}" onclick="event.stopPropagation()"
                onblur="renameList('${l.id}', this.value)" onkeydown="if(event.key==='Enter') this.blur()">
         <span class="lane-count">${listCards.length}</span>
-        <button class="lane-btn" title="List color" onclick="openListColorMenu(event,'${l.id}')">◐</button>
-        <button class="lane-btn" title="Collapse" onclick="toggleCollapse('${l.id}')">«</button>
-        <button class="lane-btn" title="Delete list" onclick="deleteList('${l.id}')">✕</button>
+        <button class="lane-btn" title="Collapse" onclick="toggleCollapse('${l.id}')">»«</button>
+        <button class="lane-btn" title="List actions" onclick="openListActionsMenu(event,'${l.id}')">⋯</button>
       </div>
       <div class="lane-cards" data-list-id="${l.id}">
         ${listCards.map(cardFrontHtml).join('')}
@@ -2062,42 +2054,76 @@ function renderBoard(){
 
 /* ---------------- List color ---------------- */
 const LIST_COLORS = ['#47b2cc','#1e8a5f','#e2b93b','#e07b39','#c0392b','#8e6bb8','#17305e','#5a6472','#c2568f'];
-let colorMenuEl = null;
-
-function closeColorMenu(){
-  if(colorMenuEl){ colorMenuEl.remove(); colorMenuEl = null; }
-}
-function openListColorMenu(evt, listId){
-  evt.stopPropagation();
-  closeColorMenu();
-  const l = listById(listId);
-  if(!l) return;
-  const menu = document.createElement('div');
-  menu.className = 'color-menu';
-  menu.innerHTML = LIST_COLORS.map(col=>
-    `<button class="color-swatch${l.color===col?' on':''}" style="background:${col}" title="${col}"
-       onclick="setListColor('${listId}','${col}')"></button>`
-  ).join('') + `<button class="color-swatch none${!l.color?' on':''}" title="No color"
-       onclick="setListColor('${listId}','')">✕</button>`;
-  document.body.appendChild(menu);
-  // Anchored to the button, then nudged back inside the viewport if the lane
-  // sits near the right edge.
-  const r = evt.currentTarget.getBoundingClientRect();
-  menu.style.top = (r.bottom + 6) + 'px';
-  const w = menu.offsetWidth;
-  menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
-  colorMenuEl = menu;
-}
 function setListColor(listId, color){
-  closeColorMenu();
   listsRef(currentBoardId).doc(listId).update({color: color || firebase.firestore.FieldValue.delete()})
     .catch(e=>{ console.error(e); showToast("Couldn't save list color"); });
   touchBoard();
+  renderListActionsMenu();
 }
-document.addEventListener('click', e=>{
-  if(colorMenuEl && !colorMenuEl.contains(e.target)) closeColorMenu();
-});
-document.addEventListener('keydown', e=>{ if(e.key === 'Escape') closeColorMenu(); });
+
+/* ---------------- List actions menu ----------------
+   One "⋯" menu on the lane header replaces the old standalone color-swatch
+   button, folding sorting, color, and delete into a single place — same
+   append-to-body / positionPopover convention as the other mini-popovers. */
+let listActionsEl = null;
+let listActionsListId = null;
+const LIST_SORTS = [
+  {id:'title', label:'Card Name (A → Z)'},
+  {id:'due',   label:'Due Date (Soonest First)'},
+  {id:'newest',label:'Date Created (Newest First)'},
+  {id:'oldest',label:'Date Created (Oldest First)'}
+];
+function closeListActionsMenu(){
+  if(listActionsEl){ listActionsEl.remove(); listActionsEl = null; listActionsListId = null; }
+}
+function renderListActionsMenu(){
+  if(!listActionsEl || !listActionsListId) return;
+  const l = listById(listActionsListId);
+  if(!l) return;
+  listActionsEl.innerHTML = `
+    <div class="mp-head">List Actions<button class="cm-icon-btn" onclick="closeListActionsMenu()">✕</button></div>
+    <div class="mp-label">Sort By</div>
+    ${LIST_SORTS.map(s=>`<div class="mp-row" onclick="sortListCards('${l.id}','${s.id}')">${s.label}</div>`).join('')}
+    <div class="mp-label">List Color</div>
+    <div class="la-color-grid">
+      ${LIST_COLORS.map(col=>`<button class="color-swatch${l.color===col?' on':''}" style="background:${col}" title="${col}" onclick="setListColor('${l.id}','${col}')"></button>`).join('')}
+      <button class="color-swatch none${!l.color?' on':''}" title="No color" onclick="setListColor('${l.id}','')">✕</button>
+    </div>
+    <button type="button" class="cm-menu-item danger la-delete" onclick="closeListActionsMenu(); deleteList('${l.id}')">🗑 Delete List</button>
+  `;
+}
+function openListActionsMenu(evt, listId){
+  evt.stopPropagation();
+  closeListActionsMenu();
+  const l = listById(listId);
+  if(!l) return;
+  listActionsListId = listId;
+  const pop = document.createElement('div');
+  pop.className = 'mini-popover';
+  listActionsEl = pop;
+  renderListActionsMenu();
+  positionPopover(pop, evt.currentTarget);
+}
+async function sortListCards(listId, sortKey){
+  const sorters = {
+    title: (a,b)=> (a.title||'').localeCompare(b.title||''),
+    due: (a,b)=> (a.dueDate||'9999-99-99').localeCompare(b.dueDate||'9999-99-99'),
+    newest: (a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''),
+    oldest: (a,b)=> (a.createdAt||'').localeCompare(b.createdAt||'')
+  };
+  const fn = sorters[sortKey];
+  if(!fn) return;
+  const sorted = cardsInList(listId).slice().sort(fn);
+  closeListActionsMenu();
+  try{
+    const batch = db.batch();
+    sorted.forEach((c,i)=> batch.update(cardsRef(currentBoardId).doc(c.id), {pos: (i+1)*1000}));
+    await batch.commit();
+    touchBoard();
+  }catch(e){
+    console.error(e); showToast("Couldn't sort list");
+  }
+}
 
 /* ---------------- Board reordering ----------------
    Same fractional-position scheme the lists and cards use: dropping a board
@@ -2429,6 +2455,7 @@ document.addEventListener('click', e=>{
   if(menu && !menu.hidden && !menu.contains(e.target)) closeCardMenu();
   if(membersPopoverEl && !membersPopoverEl.contains(e.target)) closeMembersPopover();
   if(datesPopoverEl && !datesPopoverEl.contains(e.target)) closeDatesPopover();
+  if(listActionsEl && !listActionsEl.contains(e.target)) closeListActionsMenu();
 });
 
 // #cardModal itself is never replaced (only its innerHTML, on every render),
@@ -2451,6 +2478,7 @@ document.addEventListener('keydown', e=>{
     else if(document.getElementById('promptModalBackdrop').classList.contains('open')) closePrompt();
     else if(membersPopoverEl) closeMembersPopover();
     else if(datesPopoverEl) closeDatesPopover();
+    else if(listActionsEl) closeListActionsMenu();
     else if(menu && !menu.hidden) closeCardMenu();
     else if(openCardId) closeCardModal();
   }
@@ -2979,8 +3007,8 @@ function toggleMember(cardId, memberId){
 
 /* ---------------- Mini popovers (Members, Dates) ----------------
    Both follow the same append-to-body / position-near-anchor / close-on-
-   outside-click convention as .cm-menu and .color-menu, so they survive the
-   card modal's full innerHTML re-renders (they live outside it). */
+   outside-click convention as .cm-menu, so they survive the card modal's
+   full innerHTML re-renders (they live outside it). */
 function positionPopover(pop, anchorEl){
   document.body.appendChild(pop);
   const r = anchorEl.getBoundingClientRect();
