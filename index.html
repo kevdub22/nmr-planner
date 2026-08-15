@@ -520,13 +520,25 @@
   }
   .cm-head{
     flex-shrink:0;
-    display:flex; align-items:center; justify-content:flex-end;
-    gap:4px;
+    display:flex; align-items:center;
+    gap:8px;
     padding:6px 10px;
     border-bottom:1px solid var(--gray-border);
     background:var(--white);
     overflow:hidden;
   }
+  .cm-list-pill{
+    display:inline-flex; align-items:center; gap:4px; flex-shrink:0;
+    max-width:220px;
+    background:var(--gray-bg); color:var(--navy);
+    border:none; border-radius:5px;
+    padding:6px 10px; font-size:12.5px; font-weight:700;
+    cursor:pointer; font-family:inherit;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .cm-list-pill:hover{filter:brightness(0.96);}
+  .cm-list-pill-chevron{font-size:10px; opacity:0.7;}
+  .cm-head-actions{display:flex; align-items:center; gap:4px; flex-shrink:0;}
   /* Hidden until the title has scrolled out of view in .cm-main, then slides
      down into the header bar so the card's name stays visible while
      scrolling a long card — mirrors Trello's behavior. */
@@ -625,8 +637,6 @@
   }
   .cm-title-input:hover{border-color:var(--gray-border);}
   .cm-title-input:focus{background:var(--white); border-color:var(--teal); outline:none;}
-  .cm-listname{font-size:12px; color:var(--gray-text); margin-bottom:16px;}
-  .cm-listname b{color:var(--navy2);}
   .cm-section{margin-bottom:18px;}
   .cm-section-title{
     font-size:11px; font-weight:700; color:var(--gray-text);
@@ -881,6 +891,7 @@
   .dp-cal-day:hover{background:var(--gray-bg);}
   .dp-cal-day.dp-muted{color:#c2c8d1; cursor:default;}
   .dp-cal-day.dp-selected{background:var(--teal); color:var(--white); font-weight:700;}
+  .dp-cal-day.dp-in-range{background:var(--teal-light);}
   .dp-field{margin-bottom:10px;}
   .dp-field label{
     display:flex; align-items:center; gap:6px;
@@ -2532,28 +2543,37 @@ function renderCardModal(){
 
   const archiveReason = c.archiveReason || 'manual';
 
+  const listPillStyle = l && l.color
+    ? ` style="background:color-mix(in srgb, ${escAttr(l.color)} 30%, var(--white)); color:color-mix(in srgb, ${escAttr(l.color)} 70%, #1c2431);"`
+    : '';
   modal.innerHTML = `
     <div class="cm-head">
-      <div class="cm-menu-wrap">
-        <button class="cm-icon-btn" title="More actions" onclick="toggleCardMenu(event)">☰</button>
-        <div class="cm-menu" id="cardActionsMenu" hidden>
-          <button class="cm-menu-item" onclick="duplicateCard('${c.id}')">⧉ Duplicate Card</button>
-          <button class="cm-menu-item" onclick="openMoveCopyBoardChooser('${c.id}','move')">➡ Move to Board</button>
-          <button class="cm-menu-item" onclick="openMoveCopyBoardChooser('${c.id}','copy')">⎘ Copy to Board</button>
-          <div class="cm-menu-sep"></div>
-          ${c.archived ? `
-            <button class="cm-menu-item" onclick="restoreCard('${c.id}')">↩ Restore to Board</button>
-          ` : `
-            <button class="cm-menu-item" onclick="archiveCard('${c.id}','billing')">📤 Send to Billing</button>
-            <button class="cm-menu-item" onclick="archiveCard('${c.id}','completed')">✅ Mark Completed</button>
-            <button class="cm-menu-item" onclick="archiveCard('${c.id}','manual')">🗄 Archive</button>
-          `}
-          <div class="cm-menu-sep"></div>
-          <button class="cm-menu-item danger" onclick="deleteCard('${c.id}')">🗑 Delete Card</button>
-        </div>
-      </div>
+      <button class="cm-list-pill"${listPillStyle} onclick="openCardListSwitcher(event,'${c.id}')" title="Move to a different list">
+        ${escHtml(l ? l.name : 'List')}<span class="cm-list-pill-chevron">⌄</span>
+      </button>
+      ${c.archived ? `<span class="archive-badge reason-${archiveReason}">${ARCHIVE_REASON_LABEL[archiveReason]}</span>` : ''}
       <div class="cm-head-title" id="cmHeadTitle">${escHtml(c.title)}</div>
-      <button class="cm-icon-btn" title="Close" onclick="closeCardModal()">✕</button>
+      <div class="cm-head-actions">
+        <div class="cm-menu-wrap">
+          <button class="cm-icon-btn" title="More actions" onclick="toggleCardMenu(event)">⋯</button>
+          <div class="cm-menu" id="cardActionsMenu" hidden>
+            <button class="cm-menu-item" onclick="duplicateCard('${c.id}')">⧉ Duplicate Card</button>
+            <button class="cm-menu-item" onclick="openMoveCopyBoardChooser('${c.id}','move')">➡ Move to Board</button>
+            <button class="cm-menu-item" onclick="openMoveCopyBoardChooser('${c.id}','copy')">⎘ Copy to Board</button>
+            <div class="cm-menu-sep"></div>
+            ${c.archived ? `
+              <button class="cm-menu-item" onclick="restoreCard('${c.id}')">↩ Restore to Board</button>
+            ` : `
+              <button class="cm-menu-item" onclick="archiveCard('${c.id}','billing')">📤 Send to Billing</button>
+              <button class="cm-menu-item" onclick="archiveCard('${c.id}','completed')">✅ Mark Completed</button>
+              <button class="cm-menu-item" onclick="archiveCard('${c.id}','manual')">🗄 Archive</button>
+            `}
+            <div class="cm-menu-sep"></div>
+            <button class="cm-menu-item danger" onclick="deleteCard('${c.id}')">🗑 Delete Card</button>
+          </div>
+        </div>
+        <button class="cm-icon-btn" title="Close" onclick="closeCardModal()">✕</button>
+      </div>
     </div>
     <div class="cm-body">
     <div class="cm-layout">
@@ -2562,7 +2582,6 @@ function renderCardModal(){
       oninput="autoResizeTitle(this); debouncedCardUpdate('${c.id}','title',this.value)"
       onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}"
     >${escHtml(c.title)}</textarea>
-    <div class="cm-listname">in list <b>${escHtml(l ? l.name : '?')}</b>${c.archived ? `<span class="archive-badge reason-${archiveReason}">${ARCHIVE_REASON_LABEL[archiveReason]}</span>` : ''}</div>
 
     <div class="cm-section">
       <div class="cm-section-title">Labels</div>
@@ -2582,7 +2601,7 @@ function renderCardModal(){
         <div class="cm-section-col">
           <div class="cm-section-title">Dates</div>
           <div class="member-chips">
-            ${(c.dueDate || c.startDate) ? `<span class="date-chip${dueClass(c.dueDate||c.startDate) ? ' '+dueClass(c.dueDate||c.startDate) : ''}" onclick="openDatesPopover(event,'${c.id}')">${fmtShortDate(c.dueDate || c.startDate)}</span>` : ''}
+            ${(c.dueDate || c.startDate) ? `<span class="date-chip${dueClass(c.dueDate) ? ' '+dueClass(c.dueDate) : ''}" onclick="openDatesPopover(event,'${c.id}')">${c.startDate ? fmtShortDate(c.startDate) : ''}${c.startDate && c.dueDate ? ' – ' : ''}${c.dueDate ? fmtShortDate(c.dueDate) : ''}</span>` : ''}
             <button class="label-add" onclick="openDatesPopover(event,'${c.id}')" title="Dates">＋</button>
           </div>
         </div>
@@ -3083,14 +3102,12 @@ function openDatesPopover(evt, cardId){
   closeDatesPopover(); closeMembersPopover();
   const c = cardById(cardId);
   if(!c) return;
-  // Just one date — dueDate is the field of record; any startDate left over
-  // from older data is cleared the first time this card is saved from here.
-  const seed = parseYmd(c.dueDate) || parseYmd(c.startDate) || new Date();
+  const seed = parseYmd(c.startDate) || parseYmd(c.dueDate) || new Date();
   dpState = {
     cardId,
     viewYear: seed.getFullYear(), viewMonth: seed.getMonth(),
-    due: c.dueDate || c.startDate || '',
-    dueOn: !!(c.dueDate || c.startDate)
+    start: c.startDate || '', due: c.dueDate || '',
+    startOn: !!c.startDate, dueOn: !!c.dueDate
   };
   const pop = document.createElement('div');
   pop.className = 'mini-popover';
@@ -3100,7 +3117,7 @@ function openDatesPopover(evt, cardId){
 }
 function renderDatesPopover(){
   if(!datesPopoverEl || !dpState) return;
-  const {viewYear, viewMonth, due, dueOn} = dpState;
+  const {viewYear, viewMonth, start, due, startOn, dueOn} = dpState;
   const first = new Date(viewYear, viewMonth, 1);
   const startDow = first.getDay();
   const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
@@ -3113,7 +3130,7 @@ function renderDatesPopover(){
   while(cells.length % 7 !== 0) cells.push({day: trailing++, muted:true, ymd:null});
   const dows = ['Su','Mo','Tu','We','Th','Fr','Sa'];
   datesPopoverEl.innerHTML = `
-    <div class="mp-head">Date<button class="cm-icon-btn" onclick="closeDatesPopover()">✕</button></div>
+    <div class="mp-head">Dates<button class="cm-icon-btn" onclick="closeDatesPopover()">✕</button></div>
     <div class="dp-cal-head">
       <div class="dp-cal-title">${monthLabel}</div>
       <div class="dp-cal-nav">
@@ -3125,13 +3142,19 @@ function renderDatesPopover(){
       ${dows.map(d=>`<div class="dp-cal-dow">${d}</div>`).join('')}
       ${cells.map(cell=>{
         if(cell.muted) return `<div class="dp-cal-day dp-muted">${cell.day}</div>`;
-        const cls = 'dp-cal-day' + (cell.ymd === due ? ' dp-selected' : '');
+        let cls = 'dp-cal-day';
+        if(cell.ymd === start || cell.ymd === due) cls += ' dp-selected';
+        else if(start && due && cell.ymd > start && cell.ymd < due) cls += ' dp-in-range';
         return `<button type="button" class="${cls}" onclick="dpPickDay('${cell.ymd}')">${cell.day}</button>`;
       }).join('')}
     </div>
     <div class="dp-field">
-      <label><input type="checkbox" ${dueOn?'checked':''} onchange="dpToggle(this.checked)">Date</label>
-      <input type="date" value="${escAttr(due)}" ${dueOn?'':'disabled'} onchange="dpSetDate(this.value)">
+      <label><input type="checkbox" ${startOn?'checked':''} onchange="dpToggle('start',this.checked)">Start date</label>
+      <input type="date" value="${escAttr(start)}" ${startOn?'':'disabled'} onchange="dpSetDate('start',this.value)">
+    </div>
+    <div class="dp-field">
+      <label><input type="checkbox" ${dueOn?'checked':''} onchange="dpToggle('due',this.checked)">Due date</label>
+      <input type="date" value="${escAttr(due)}" ${dueOn?'':'disabled'} onchange="dpSetDate('due',this.value)">
     </div>
     <div class="dp-actions">
       <button type="button" class="btn btn-primary btn-sm" onclick="dpSave()">Save</button>
@@ -3147,29 +3170,43 @@ function dpNavMonth(delta){
   dpState.viewMonth = m; dpState.viewYear = y;
   renderDatesPopover();
 }
+// First click sets the start (clearing any prior due date so a fresh range
+// begins); once a start is set, the next click either extends it as the due
+// date or — if picked before the start — becomes the new start instead.
 function dpPickDay(ymdStr){
   if(!dpState || !ymdStr) return;
-  dpState.due = ymdStr; dpState.dueOn = true;
+  const {start, due} = dpState;
+  if(!start || (start && due)){
+    dpState.start = ymdStr; dpState.due = ''; dpState.startOn = true; dpState.dueOn = false;
+  } else if(ymdStr < start){
+    dpState.start = ymdStr;
+  } else {
+    dpState.due = ymdStr; dpState.dueOn = true;
+  }
   renderDatesPopover();
 }
-function dpToggle(on){
+function dpToggle(which, on){
   if(!dpState) return;
-  dpState.dueOn = on;
+  if(which === 'start') dpState.startOn = on; else dpState.dueOn = on;
   renderDatesPopover();
 }
-function dpSetDate(val){
+function dpSetDate(which, val){
   if(!dpState) return;
-  dpState.due = val;
-  if(val){
-    dpState.dueOn = true;
-    const d = parseYmd(val);
-    if(d){ dpState.viewYear = d.getFullYear(); dpState.viewMonth = d.getMonth(); }
+  if(which === 'start'){
+    dpState.start = val;
+    if(val){ dpState.startOn = true; const d = parseYmd(val); if(d){ dpState.viewYear = d.getFullYear(); dpState.viewMonth = d.getMonth(); } }
+  } else {
+    dpState.due = val;
+    if(val) dpState.dueOn = true;
   }
   renderDatesPopover();
 }
 function dpSave(){
   if(!dpState) return;
-  const patch = {startDate: '', dueDate: dpState.dueOn ? dpState.due : ''};
+  const patch = {
+    startDate: dpState.startOn ? dpState.start : '',
+    dueDate: dpState.dueOn ? dpState.due : ''
+  };
   const c = cardById(dpState.cardId);
   cardUpdate(dpState.cardId, patch);
   if(c){ c.startDate = patch.startDate; c.dueDate = patch.dueDate; }
@@ -3594,6 +3631,31 @@ async function duplicateCard(id){
    Labels and custom fields are defined per-board, so a card's labelIds and
    fields values are meaningless on a different board — both are dropped
    rather than carried over as orphaned references. */
+/* The list-name pill in the card header doubles as a quick list switcher —
+   clicking it picks a different list on this same board, without opening
+   the heavier Move to Board flow. */
+function openCardListSwitcher(evt, cardId){
+  evt.stopPropagation();
+  closeCardMenu();
+  const c = cardById(cardId);
+  if(!c) return;
+  const options = lists.slice().sort((a,b)=>(a.pos||0)-(b.pos||0));
+  if(!options.length) return;
+  openChooser({
+    title: 'Move to List',
+    sub: 'Choose a list on this board.',
+    choices: options.map(l=>({
+      title: escHtml(l.name || 'Untitled list'),
+      desc: l.id === c.listId ? 'Current list' : '',
+      onPick: ()=>{
+        if(l.id === c.listId) return;
+        const pos = maxPos(cardsInList(l.id)) + 1000;
+        cardUpdate(cardId, {listId: l.id, pos});
+      }
+    }))
+  });
+}
+
 function openMoveCopyBoardChooser(cardId, mode){
   closeCardMenu();
   const otherBoards = boards.filter(b=>b.id !== currentBoardId).slice().sort((a,b)=>(a.pos||0)-(b.pos||0));
