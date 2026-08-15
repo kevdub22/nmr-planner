@@ -111,27 +111,35 @@
   .nav-sub.active{color:var(--teal); font-weight:700;}
   .sidebar-footer{padding:16px 20px; font-size:11px; color:rgba(255,255,255,0.4);}
   .nav-links{display:flex; flex-direction:column; flex:1;}
-  /* Sits outside .nav-links (which becomes a mobile drawer) so it — and its
-     unread count — stay visible whether or not the drawer is open. */
+  /* Fixed to the viewport, not the sidebar/toolbar, so it — and its unread
+     count — stay in the same top-right spot across every view, over the
+     mobile drawer, regardless of scroll. */
   .notif-bell{
-    position:relative;
-    margin:0 0 10px 20px; flex-shrink:0;
-    background:none; border:none; cursor:pointer;
-    color:rgba(255,255,255,0.75);
-    font-size:17px; line-height:1;
-    padding:6px; border-radius:6px;
+    position:fixed; top:calc(16px + env(safe-area-inset-top)); right:20px; z-index:250;
+    background:var(--white); border:1px solid var(--gray-border); cursor:pointer;
+    color:var(--navy);
+    width:38px; height:38px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:16px; line-height:1;
+    box-shadow:0 2px 10px rgba(8,31,66,0.14);
   }
-  .notif-bell:hover{background:rgba(255,255,255,0.08); color:var(--white);}
+  .notif-bell:hover{background:var(--gray-bg);}
   .notif-badge{
-    position:absolute; top:-2px; right:-2px;
+    position:absolute; top:-3px; right:-3px;
     background:var(--red); color:var(--white);
     font-size:10px; font-weight:800; line-height:1;
     min-width:16px; height:16px; border-radius:8px;
     display:flex; align-items:center; justify-content:center;
-    padding:0 3px; border:2px solid var(--navy);
+    padding:0 3px; border:2px solid var(--white);
   }
   .notif-badge[hidden]{display:none;}
   .notif-panel{width:320px; max-height:70vh; display:flex; flex-direction:column; padding:0;}
+  /* .notif-panel's own display:flex ties the [hidden] UA rule on specificity
+     and wins the cascade (author beats user-agent), so the popup rendered
+     visible regardless of the hidden attribute/property — this is what
+     actually forced it open and unclosable. Needs the attribute in the
+     selector to out-specify the class rule above. */
+  .notif-panel[hidden]{display:none;}
   .notif-panel .mp-head{padding:14px 14px 10px 14px; margin-bottom:0;}
   .notif-list{overflow-y:auto; flex:1;}
   .notif-row{
@@ -1134,7 +1142,9 @@
     }
     .brand{padding:0; margin:0; border-bottom:none; flex-shrink:0;}
     .brand-logo{width:110px;}
-    .notif-bell{margin:0;}
+    /* Clears the hamburger button, which also sits at the top-right edge
+       on this layout — otherwise the two overlap. */
+    .notif-bell{top:calc(8px + env(safe-area-inset-top)); right:60px;}
     .hamburger-btn{display:flex;}
     .nav-links{
       position:fixed; top:0; right:0; height:100%;
