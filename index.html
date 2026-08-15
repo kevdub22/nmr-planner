@@ -264,20 +264,13 @@
     display:flex; flex-direction:column;
   }
   .lane.drag-over-lane{outline:2px solid var(--teal); outline-offset:2px;}
-  /* Lane color: a top accent bar plus a tinted header, so the color reads at
-     a glance without swamping the cards inside. */
+  /* Lane color: the whole lane is tinted, header text picks up a darker shade
+     of the same color so it reads clearly against the fill. */
   .lane.has-color{
-    border-top:4px solid var(--lane-color);
-    border-top-left-radius:var(--radius);
-    border-top-right-radius:var(--radius);
-  }
-  .lane.has-color .lane-header{
-    background:color-mix(in srgb, var(--lane-color) 16%, transparent);
-    border-top-left-radius:5px;
-    border-top-right-radius:5px;
+    background:color-mix(in srgb, var(--lane-color) 22%, var(--white));
+    border-color:color-mix(in srgb, var(--lane-color) 35%, var(--gray-border));
   }
   .lane.has-color .lane-name-input{color:color-mix(in srgb, var(--lane-color) 72%, #1c2431);}
-  .lane.collapsed.has-color{border-top:4px solid var(--lane-color);}
   .lane.collapsed.has-color .lane-collapsed-name{color:color-mix(in srgb, var(--lane-color) 72%, #1c2431);}
 
   /* Archive panel — a flat list of every archived card on this board, shown
@@ -523,8 +516,12 @@
      .cm-side has no height cap of its own, so its grey background stretches
      to match whichever column ends up taller instead of stopping short
      partway down the card. */
-  .cm-body{flex:1; min-height:0; overflow-y:auto;}
+  /* cm-body no longer scrolls itself — it just crops .cm-layout to the space
+     left under the header. Each column scrolls on its own, so a long
+     description doesn't drag the comment thread up and out of view with it. */
+  .cm-body{flex:1; min-height:0; overflow:hidden; display:flex;}
   .cm-layout{
+    flex:1; min-height:0;
     display:grid;
     grid-template-columns:minmax(0,1fr) 330px;
   }
@@ -535,7 +532,20 @@
     padding:6px 10px;
     border-bottom:1px solid var(--gray-border);
     background:var(--white);
+    overflow:hidden;
   }
+  /* Hidden until the title has scrolled out of view in .cm-main, then slides
+     down into the header bar so the card's name stays visible while
+     scrolling a long card — mirrors Trello's behavior. */
+  .cm-head-title{
+    flex:1; min-width:0;
+    font-size:13.5px; font-weight:700; color:var(--navy);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    padding-left:6px;
+    opacity:0; transform:translateY(-100%);
+    transition:opacity .18s ease, transform .18s ease;
+  }
+  .cm-head-title.visible{opacity:1; transform:translateY(0);}
   .cm-icon-btn{
     background:none; border:none; cursor:pointer;
     width:26px; height:26px; border-radius:6px;
@@ -572,12 +582,12 @@
   .archive-badge.reason-billing{background:#cfe9f8; color:#0c4a6e;}
   .archive-badge.reason-completed{background:#b7e4c7; color:#14532d;}
   .archive-badge.reason-manual{background:#e2e5ea; color:#3a4250;}
-  .cm-main{padding:14px 24px 24px 24px; min-width:0;}
+  .cm-main{padding:14px 24px 24px 24px; min-width:0; overflow-y:auto;}
   .cm-side{
     background:var(--gray-bg);
     border-left:1px solid var(--gray-border);
     padding:20px;
-    align-self:stretch;
+    overflow-y:auto;
   }
   .cm-side-head{
     display:flex; align-items:center; gap:7px;
@@ -630,6 +640,8 @@
     text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;
   }
   .cm-grid-2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .cm-section-row{display:flex; flex-wrap:wrap; gap:24px;}
+  .cm-section-col{flex:1; min-width:140px;}
   .cm-section-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
   .cm-section-head .cm-section-title{margin-bottom:0;}
 
@@ -798,15 +810,96 @@
   }
   .label-edit-btn:hover{text-decoration:underline;}
 
-  .member-chip{
-    display:inline-flex; align-items:center; gap:7px;
-    border:1px solid var(--gray-border); border-radius:20px;
-    padding:3px 12px 3px 3px; cursor:pointer; user-select:none;
-    font-size:12.5px; font-weight:600; color:var(--gray-text);
+  .member-chips{display:flex; flex-wrap:wrap; align-items:center; gap:6px;}
+  .member-chips .avatar{
+    margin-left:0; width:28px; height:28px; font-size:11px; cursor:pointer; border:none;
+  }
+  .date-chip{
+    display:inline-flex; align-items:center;
+    border:1px solid var(--gray-border); border-radius:5px;
+    padding:5px 11px; cursor:pointer;
+    font-size:12.5px; font-weight:600; color:#1c2431;
     background:var(--white);
   }
-  .member-chip.on{border-color:var(--teal); background:var(--teal-light); color:var(--navy);}
-  .member-chips{display:flex; flex-wrap:wrap; gap:6px;}
+  .date-chip:hover{border-color:var(--teal);}
+  .date-chip.due-over{background:#fdeae8; border-color:#f0c8c4; color:var(--red);}
+  .date-chip.due-soon{background:#fdf0d5; border-color:#ecd9a8; color:#8a6100;}
+
+  /* Small anchored popovers (Members, Dates) — same positioning convention
+     as .cm-menu / .color-menu: appended to body, placed via getBoundingClientRect
+     in positionPopover(), removed on outside click or Escape. */
+  .mini-popover{
+    position:fixed; z-index:1200;
+    background:var(--white); width:304px;
+    border:1px solid var(--gray-border); border-radius:9px;
+    box-shadow:0 12px 32px rgba(8,31,66,0.22);
+    padding:14px;
+  }
+  .mp-head{
+    display:flex; align-items:center; justify-content:center; position:relative;
+    font-size:13.5px; font-weight:700; color:var(--navy);
+    margin-bottom:10px;
+  }
+  .mp-head .cm-icon-btn{position:absolute; right:-4px; top:-6px;}
+  .mp-search{
+    width:100%; margin-bottom:10px;
+    padding:7px 10px; font-size:13px;
+    border:1px solid var(--gray-border); border-radius:6px;
+  }
+  .mp-search:focus{border-color:var(--teal); outline:none;}
+  .mp-label{
+    font-size:11px; font-weight:700; color:var(--gray-text);
+    text-transform:uppercase; letter-spacing:0.4px;
+    margin:10px 0 4px 0;
+  }
+  .mp-label:first-child{margin-top:0;}
+  .mp-row{
+    display:flex; align-items:center; gap:9px;
+    padding:6px 6px; border-radius:6px; cursor:pointer;
+  }
+  .mp-row:hover{background:var(--gray-bg);}
+  .mp-row .avatar{margin-left:0; width:26px; height:26px; font-size:10.5px; flex-shrink:0;}
+  .mp-name{flex:1; min-width:0; font-size:13px; color:#1c2431; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .mp-remove{
+    background:none; border:none; cursor:pointer; color:#b8bfc9;
+    font-size:13px; padding:2px 4px; flex-shrink:0;
+  }
+  .mp-remove:hover{color:var(--red);}
+  .mp-empty{font-size:12.5px; color:var(--gray-text); padding:6px 6px;}
+
+  /* Dates popover */
+  .dp-cal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+  .dp-cal-nav{display:flex; gap:2px;}
+  .dp-cal-btn{
+    background:none; border:none; cursor:pointer; color:var(--gray-text);
+    font-size:13px; padding:3px 6px; border-radius:5px;
+  }
+  .dp-cal-btn:hover{background:var(--gray-bg); color:var(--navy);}
+  .dp-cal-title{font-size:13px; font-weight:700; color:var(--navy);}
+  .dp-cal-grid{
+    display:grid; grid-template-columns:repeat(7, 1fr);
+    gap:2px; margin-bottom:12px; text-align:center;
+  }
+  .dp-cal-dow{font-size:10.5px; font-weight:700; color:var(--gray-text); padding:4px 0;}
+  .dp-cal-day{
+    background:none; border:none; cursor:pointer; border-radius:5px;
+    font-size:12.5px; color:#1c2431; padding:6px 0; font-family:inherit;
+  }
+  .dp-cal-day:hover{background:var(--gray-bg);}
+  .dp-cal-day.dp-muted{color:#c2c8d1; cursor:default;}
+  .dp-cal-day.dp-selected{background:var(--teal); color:var(--white); font-weight:700;}
+  .dp-field{margin-bottom:10px;}
+  .dp-field label{
+    display:flex; align-items:center; gap:6px;
+    font-size:12px; font-weight:700; color:var(--navy);
+    text-transform:uppercase; letter-spacing:0.3px; margin-bottom:5px;
+  }
+  .dp-field label input[type=checkbox]{margin:0; accent-color:var(--navy);}
+  .dp-field input[type=date]{
+    width:100%; padding:7px 10px; font-size:13px;
+    border:1px solid var(--gray-border); border-radius:6px; font-family:inherit;
+  }
+  .dp-actions{display:flex; flex-direction:column; gap:8px; margin-top:12px;}
 
   .check-progress{
     height:7px; background:var(--gray-bg); border-radius:4px;
@@ -816,13 +909,30 @@
   .check-progress-fill.done{background:var(--green);}
   .check-item{
     display:flex; align-items:center; gap:8px; padding:4px 0;
+    border-top:2px solid transparent; border-bottom:2px solid transparent;
   }
+  .check-item.ci-dragging{opacity:0.4;}
+  .check-item.ci-drag-over-top{border-top-color:var(--teal);}
+  .check-item.ci-drag-over-bottom{border-bottom-color:var(--teal);}
+  .ci-drag-handle{cursor:grab; color:#c2c8d1; font-size:12px; flex-shrink:0; user-select:none; padding:0 1px;}
+  .ci-drag-handle:active{cursor:grabbing;}
   .check-item input[type=checkbox]{
     width:15px; height:15px; accent-color:var(--navy); cursor:pointer; flex-shrink:0; margin:0;
   }
   .check-item .ci-text{flex:1; font-size:13px; min-width:0; word-wrap:break-word;}
   .check-item.done .ci-text{text-decoration:line-through; color:var(--gray-text);}
   .check-add{display:flex; gap:6px; margin-top:6px;}
+  .check-add input[type=text]{flex:1; min-width:0;}
+  .attach-item{
+    display:flex; align-items:center; gap:8px;
+    padding:5px 0; border-bottom:1px solid var(--gray-border);
+  }
+  .attach-item:last-of-type{border-bottom:none;}
+  .attach-link{
+    flex:1; min-width:0; font-size:13px; color:var(--teal);
+    text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .attach-link:hover{text-decoration:underline;}
   /* The element+attribute selector on input[type=date] above out-specifies a
      bare class, so this has to match on both to win back its own width. */
   input[type=date].ci-due{
@@ -882,6 +992,17 @@
     text-align:center;
   }
   .gate-logo{width:170px; height:auto; margin:0 auto 22px auto; display:block;}
+  /* Shown while onAuthStateChanged is still restoring a persisted session, so
+     a returning user sees a neutral spinner on refresh instead of the full
+     email/password form flashing in and then straight back out. */
+  .gate-checking{display:flex; flex-direction:column; align-items:center; gap:12px; padding:6px 0 2px 0;}
+  .gate-checking p{margin:0; font-size:12.5px; color:var(--gray-text);}
+  .gate-spinner{
+    width:22px; height:22px; border-radius:50%;
+    border:2.5px solid var(--gray-border); border-top-color:var(--teal);
+    animation:gate-spin .8s linear infinite;
+  }
+  @keyframes gate-spin{ to{ transform:rotate(360deg); } }
   .gate-box h2{
     margin:0 0 6px 0; font-size:19px; color:var(--navy);
     font-family:'Instrument Sans', var(--font);
@@ -1177,19 +1298,25 @@
         <path fill="#44b1ca" d="M264.24,157.92c.12,7.2,6.86,9.06,12.94,9.06s10.86-2.42,10.86-6.81c0-3.66-2.88-5.18-7.49-5.96l-9.13-1.52c-4.78-.78-11.94-2.71-11.94-10.52,0-7.32,5.79-12.21,16.09-12.21,8.05,0,16.55,2.93,17.11,12.6h-5.98c-.51-3.15-2.3-7.42-11.94-7.42-4.39,0-9.35,1.86-9.35,6.59,0,2.47,1.63,4.44,6.59,5.3l9.86,1.69c3.15.56,12.11,2.08,12.11,10.3,0,10.25-9.18,13.16-17.28,13.16-9.06,0-18.46-3.15-18.46-14.23h5.96l.03-.02h.02Z"/>
       </g>
     </svg>
-    <h2>NMR Digital Portal</h2>
-    <p id="gateSub">Sign in with your NMR work email to continue.</p>
-    <form class="gate-form" onsubmit="event.preventDefault(); signIn();">
-      <input type="email" id="gateEmail" placeholder="you@nmrevents.com" autocomplete="username" required>
-      <input type="password" id="gatePassword" placeholder="Password" autocomplete="current-password" required>
-      <button class="gate-btn" id="gateBtn" type="submit">
-        <span id="gateBtnLabel">Sign in</span>
-      </button>
-    </form>
-    <div class="gate-err" id="gateErr" hidden></div>
-    <div class="gate-ok" id="gateOk" hidden></div>
-    <button class="gate-link" id="gateReset" onclick="sendReset()">Forgot your password?</button>
-    <button class="gate-link" id="gateRetry" hidden onclick="signOutNow()">Use a different account</button>
+    <div class="gate-checking" id="gateChecking">
+      <div class="gate-spinner"></div>
+      <p>Checking your session…</p>
+    </div>
+    <div id="gateFormWrap" hidden>
+      <h2>NMR Digital Portal</h2>
+      <p id="gateSub">Sign in with your NMR work email to continue.</p>
+      <form class="gate-form" onsubmit="event.preventDefault(); signIn();">
+        <input type="email" id="gateEmail" placeholder="you@nmrevents.com" autocomplete="username" required>
+        <input type="password" id="gatePassword" placeholder="Password" autocomplete="current-password" required>
+        <button class="gate-btn" id="gateBtn" type="submit">
+          <span id="gateBtnLabel">Sign in</span>
+        </button>
+      </form>
+      <div class="gate-err" id="gateErr" hidden></div>
+      <div class="gate-ok" id="gateOk" hidden></div>
+      <button class="gate-link" id="gateReset" onclick="sendReset()">Forgot your password?</button>
+      <button class="gate-link" id="gateRetry" hidden onclick="signOutNow()">Use a different account</button>
+    </div>
   </div>
 </div>
 
@@ -1807,11 +1934,35 @@ function renderArchivePanel(){
   }).join('');
 }
 
-function archiveCard(cardId, reason){
+/* Billing/Completed find-or-create the matching list on this board and move
+   the card there, so it stays visible instead of dropping into the archive.
+   A plain manual archive still uses the old flag-based mechanism below. */
+async function findOrCreateListId(name){
+  const existing = lists.find(l => (l.name||'').trim().toLowerCase() === name.toLowerCase());
+  if(existing) return existing.id;
+  const id = uid();
+  await listsRef(currentBoardId).doc(id).set({name, pos: maxPos(lists) + 1000, createdAt: new Date().toISOString()});
+  return id;
+}
+async function archiveCard(cardId, reason){
   closeCardMenu();
+  if(reason === 'billing' || reason === 'completed'){
+    const listName = reason === 'billing' ? 'Billing' : 'Completed';
+    try{
+      const listId = await findOrCreateListId(listName);
+      const pos = maxPos(cardsInList(listId)) + 1000;
+      await cardsRef(currentBoardId).doc(cardId).update({listId, pos});
+      touchBoard();
+      closeCardModal();
+      showToast(`Moved to ${listName}`);
+    }catch(e){
+      console.error(e); showToast(`Couldn't move card to ${listName}`);
+    }
+    return;
+  }
   cardUpdate(cardId, {archived:true, archiveReason: reason, archivedAt: new Date().toISOString()});
   closeCardModal();
-  showToast(reason === 'billing' ? 'Sent to billing' : reason === 'completed' ? 'Marked completed' : 'Card archived');
+  showToast('Card archived');
 }
 function restoreCard(cardId){
   cardUpdate(cardId, {
@@ -2109,7 +2260,7 @@ async function addCard(listId){
     listId, title,
     pos: maxPos(cardsInList(listId)) + 1000,
     desc:'', labelIds:[], memberIds:[], startDate:'', dueDate:'',
-    checklist:[], comments:[],
+    checklist:[], attachments:[], comments:[],
     createdAt: new Date().toISOString()
   });
   touchBoard();
@@ -2276,7 +2427,20 @@ function closeCardMenu(){
 document.addEventListener('click', e=>{
   const menu = document.getElementById('cardActionsMenu');
   if(menu && !menu.hidden && !menu.contains(e.target)) closeCardMenu();
+  if(membersPopoverEl && !membersPopoverEl.contains(e.target)) closeMembersPopover();
+  if(datesPopoverEl && !datesPopoverEl.contains(e.target)) closeDatesPopover();
 });
+
+// #cardModal itself is never replaced (only its innerHTML, on every render),
+// so this is registered once here rather than re-attached to #cmMain each
+// time. 'scroll' doesn't bubble, but a capture-phase listener on an ancestor
+// still sees it fire on any scrollable descendant.
+document.getElementById('cardModal').addEventListener('scroll', e=>{
+  if(e.target && e.target.id === 'cmMain'){
+    const title = document.getElementById('cmHeadTitle');
+    if(title) title.classList.toggle('visible', e.target.scrollTop > 36);
+  }
+}, true);
 
 document.addEventListener('keydown', e=>{
   if(e.key === 'Escape'){
@@ -2285,6 +2449,8 @@ document.addEventListener('keydown', e=>{
     else if(document.getElementById('salesModalBackdrop').classList.contains('open')) closeSalesPanel();
     else if(document.getElementById('chooserModalBackdrop').classList.contains('open')) closeChooser();
     else if(document.getElementById('promptModalBackdrop').classList.contains('open')) closePrompt();
+    else if(membersPopoverEl) closeMembersPopover();
+    else if(datesPopoverEl) closeDatesPopover();
     else if(menu && !menu.hidden) closeCardMenu();
     else if(openCardId) closeCardModal();
   }
@@ -2320,6 +2486,13 @@ function renderCardModal(){
     }
   }
 
+  // Every card field change (a checklist tick, a dropdown pick, a comment
+  // post) re-renders this whole modal via the Firestore snapshot, which
+  // recreates #cmMain/#cmSide from scratch — losing their scroll position
+  // unless it's captured here and put back after.
+  const prevMainScroll = document.getElementById('cmMain')?.scrollTop || 0;
+  const prevSideScroll = document.getElementById('cmSide')?.scrollTop || 0;
+
   const l = listById(c.listId);
   const labels = boardLabels();
   const cl = c.checklist || [];
@@ -2337,6 +2510,8 @@ function renderCardModal(){
         <button class="cm-icon-btn" title="More actions" onclick="toggleCardMenu(event)">☰</button>
         <div class="cm-menu" id="cardActionsMenu" hidden>
           <button class="cm-menu-item" onclick="duplicateCard('${c.id}')">⧉ Duplicate Card</button>
+          <button class="cm-menu-item" onclick="openMoveCopyBoardChooser('${c.id}','move')">➡ Move to Board</button>
+          <button class="cm-menu-item" onclick="openMoveCopyBoardChooser('${c.id}','copy')">⎘ Copy to Board</button>
           <div class="cm-menu-sep"></div>
           ${c.archived ? `
             <button class="cm-menu-item" onclick="restoreCard('${c.id}')">↩ Restore to Board</button>
@@ -2349,11 +2524,12 @@ function renderCardModal(){
           <button class="cm-menu-item danger" onclick="deleteCard('${c.id}')">🗑 Delete Card</button>
         </div>
       </div>
+      <div class="cm-head-title" id="cmHeadTitle">${escHtml(c.title)}</div>
       <button class="cm-icon-btn" title="Close" onclick="closeCardModal()">✕</button>
     </div>
     <div class="cm-body">
     <div class="cm-layout">
-    <div class="cm-main">
+    <div class="cm-main" id="cmMain">
     <textarea class="cm-title-input" id="cmTitle" rows="1"
       oninput="autoResizeTitle(this); debouncedCardUpdate('${c.id}','title',this.value)"
       onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}"
@@ -2374,21 +2550,39 @@ function renderCardModal(){
     </div>
 
     <div class="cm-section">
-      <div class="cm-section-title">Dates</div>
-      <div class="cm-grid-2">
-        <div><label>Start</label><input type="date" value="${escAttr(c.startDate||'')}" onchange="cardUpdate('${c.id}',{startDate:this.value})"></div>
-        <div><label>Due</label><input type="date" value="${escAttr(c.dueDate||'')}" onchange="cardUpdate('${c.id}',{dueDate:this.value})"></div>
+      <div class="cm-section-row">
+        <div class="cm-section-col">
+          <div class="cm-section-title">Dates</div>
+          <div class="member-chips">
+            ${(c.dueDate || c.startDate) ? `<span class="date-chip${dueClass(c.dueDate||c.startDate) ? ' '+dueClass(c.dueDate||c.startDate) : ''}" onclick="openDatesPopover(event,'${c.id}')">${fmtShortDate(c.dueDate || c.startDate)}</span>` : ''}
+            <button class="label-add" onclick="openDatesPopover(event,'${c.id}')" title="Dates">＋</button>
+          </div>
+        </div>
+        <div class="cm-section-col">
+          <div class="cm-section-title">Members</div>
+          <div class="member-chips">
+            ${(c.memberIds||[]).map(id=>{
+              const m = memberById(id);
+              if(!m) return '';
+              return `<span class="avatar" style="background:${escAttr(m.color)}" title="${escAttr(m.name)}" onclick="openMembersPopover(event,'${c.id}')">${escAttr(m.initials)}</span>`;
+            }).join('')}
+            <button class="label-add" onclick="openMembersPopover(event,'${c.id}')" title="Members">＋</button>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="cm-section">
-      <div class="cm-section-title">Members</div>
-      <div class="member-chips">
-        ${members.length ? members.map(m=>{
-          const on = (c.memberIds||[]).includes(m.id);
-          return `<span class="member-chip${on?' on':''}" onclick="toggleMember('${c.id}','${m.id}')">
-            <span class="avatar" style="background:${escAttr(m.color)}; margin-left:0;">${escAttr(m.initials)}</span>${escHtml(m.name)}</span>`;
-        }).join('') : `<span style="font-size:12.5px; color:var(--gray-text);">Nobody has signed in yet — teammates appear here once they open the portal.</span>`}
+      <div class="cm-section-title">Attachments${(c.attachments||[]).length ? ` <span style="text-transform:none; letter-spacing:0;">— ${(c.attachments||[]).length}</span>` : ''}</div>
+      ${(c.attachments||[]).map((a,i)=>`
+        <div class="attach-item">
+          <a class="attach-link" href="${escAttr(a.url)}" target="_blank" rel="noopener noreferrer">🔗 ${escHtml(a.title || a.url)}</a>
+          <button class="row-remove" title="Remove attachment" onclick="removeAttachment('${c.id}',${i})">✕</button>
+        </div>`).join('')}
+      <div class="check-add">
+        <input type="text" id="newAttachUrl" placeholder="Paste a link..." onkeydown="if(event.key==='Enter') addAttachment('${c.id}')">
+        <input type="text" id="newAttachTitle" placeholder="Title (optional)" onkeydown="if(event.key==='Enter') addAttachment('${c.id}')">
+        <button class="btn btn-ghost btn-sm" onclick="addAttachment('${c.id}')">Add</button>
       </div>
     </div>
 
@@ -2428,7 +2622,10 @@ function renderCardModal(){
       <div class="cm-section-title">Checklist ${cl.length ? `<span style="text-transform:none; letter-spacing:0;">— ${done}/${cl.length}</span>` : ''}</div>
       ${cl.length ? `<div class="check-progress"><div class="check-progress-fill${done===cl.length?' done':''}" style="width:${progress}%"></div></div>` : ''}
       ${cl.map((item,i)=>`
-        <div class="check-item${item.done?' done':''}">
+        <div class="check-item${item.done?' done':''}" data-ci-index="${i}"
+          ondragover="ciDragOver(event,${i})" ondragleave="ciDragLeave(event)" ondrop="ciDrop(event,'${c.id}',${i})">
+          <span class="ci-drag-handle" draggable="true" title="Drag to reorder"
+            ondragstart="ciDragStart(event,${i})" ondragend="ciDragEnd(event)">&#9776;</span>
           <input type="checkbox" ${item.done?'checked':''} onchange="toggleCheckItem('${c.id}',${i})">
           <span class="ci-text">${escHtml(item.text)}</span>
           <input type="date" class="ci-due${item.due && !item.done ? ' ' + dueClass(item.due) : ''}"
@@ -2445,7 +2642,7 @@ function renderCardModal(){
 
     </div>
 
-    <aside class="cm-side">
+    <aside class="cm-side" id="cmSide">
       <div class="cm-side-head">
         <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
           <path d="M17 12a2 2 0 0 1-2 2H7l-4 3V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7Z"
@@ -2478,6 +2675,10 @@ function renderCardModal(){
   `;
   closeCardMenu();
   autoResizeTitle(document.getElementById('cmTitle'));
+  const mainEl = document.getElementById('cmMain');
+  if(mainEl) mainEl.scrollTop = prevMainScroll;
+  const sideEl = document.getElementById('cmSide');
+  if(sideEl) sideEl.scrollTop = prevSideScroll;
 
   if(focused){
     const el = document.getElementById(focused.id);
@@ -2776,6 +2977,186 @@ function toggleMember(cardId, memberId){
     : firebase.firestore.FieldValue.arrayUnion(memberId)});
 }
 
+/* ---------------- Mini popovers (Members, Dates) ----------------
+   Both follow the same append-to-body / position-near-anchor / close-on-
+   outside-click convention as .cm-menu and .color-menu, so they survive the
+   card modal's full innerHTML re-renders (they live outside it). */
+function positionPopover(pop, anchorEl){
+  document.body.appendChild(pop);
+  const r = anchorEl.getBoundingClientRect();
+  const h = pop.offsetHeight, w = pop.offsetWidth;
+  let top = r.bottom + 6;
+  if(top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
+  pop.style.top = top + 'px';
+  pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+}
+
+let membersPopoverEl = null;
+let membersPopoverCardId = null;
+function closeMembersPopover(){
+  if(membersPopoverEl){ membersPopoverEl.remove(); membersPopoverEl = null; membersPopoverCardId = null; }
+}
+function renderMembersPopoverBody(filter){
+  const c = cardById(membersPopoverCardId);
+  if(!c || !membersPopoverEl) return;
+  const q = (filter||'').trim().toLowerCase();
+  const match = m => !q || (m.name||'').toLowerCase().includes(q);
+  const onCard = members.filter(m => (c.memberIds||[]).includes(m.id));
+  const others = members.filter(m => !(c.memberIds||[]).includes(m.id));
+  const row = (m, removable) => `
+    <div class="mp-row" onclick="toggleMemberFromPopover('${m.id}')">
+      <span class="avatar" style="background:${escAttr(m.color)}">${escAttr(m.initials)}</span>
+      <span class="mp-name">${escHtml(m.name)}</span>
+      ${removable ? `<button class="mp-remove" title="Remove" onclick="event.stopPropagation(); toggleMemberFromPopover('${m.id}')">✕</button>` : ''}
+    </div>`;
+  const onCardMatch = onCard.filter(match), othersMatch = others.filter(match);
+  membersPopoverEl.querySelector('.mp-body').innerHTML = `
+    ${onCardMatch.length ? `<div class="mp-label">Card members</div>${onCardMatch.map(m=>row(m,true)).join('')}` : ''}
+    <div class="mp-label">Board members</div>
+    ${othersMatch.length ? othersMatch.map(m=>row(m,false)).join('')
+      : `<div class="mp-empty">${members.length ? 'No matching members.' : 'Nobody has signed in yet — teammates appear here once they open the portal.'}</div>`}
+  `;
+}
+function toggleMemberFromPopover(memberId){
+  if(!membersPopoverCardId) return;
+  toggleMember(membersPopoverCardId, memberId);
+  const c = cardById(membersPopoverCardId);
+  if(c){
+    const on = (c.memberIds||[]).includes(memberId);
+    c.memberIds = on ? (c.memberIds||[]).filter(x=>x!==memberId) : [...(c.memberIds||[]), memberId];
+  }
+  renderMembersPopoverBody(membersPopoverEl?.querySelector('.mp-search')?.value || '');
+}
+function openMembersPopover(evt, cardId){
+  evt.stopPropagation();
+  closeMembersPopover(); closeDatesPopover();
+  membersPopoverCardId = cardId;
+  const pop = document.createElement('div');
+  pop.className = 'mini-popover';
+  pop.innerHTML = `
+    <div class="mp-head">Members<button class="cm-icon-btn" onclick="closeMembersPopover()">✕</button></div>
+    <input type="text" class="mp-search" id="mpSearch" placeholder="Search members..." oninput="renderMembersPopoverBody(this.value)">
+    <div class="mp-body"></div>
+  `;
+  membersPopoverEl = pop;
+  renderMembersPopoverBody('');
+  positionPopover(pop, evt.currentTarget);
+  document.getElementById('mpSearch').focus();
+}
+
+let datesPopoverEl = null;
+let dpState = null;
+function closeDatesPopover(){
+  if(datesPopoverEl){ datesPopoverEl.remove(); datesPopoverEl = null; dpState = null; }
+}
+function dpYmd(y,m,d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+function openDatesPopover(evt, cardId){
+  evt.stopPropagation();
+  closeDatesPopover(); closeMembersPopover();
+  const c = cardById(cardId);
+  if(!c) return;
+  // Just one date — dueDate is the field of record; any startDate left over
+  // from older data is cleared the first time this card is saved from here.
+  const seed = parseYmd(c.dueDate) || parseYmd(c.startDate) || new Date();
+  dpState = {
+    cardId,
+    viewYear: seed.getFullYear(), viewMonth: seed.getMonth(),
+    due: c.dueDate || c.startDate || '',
+    dueOn: !!(c.dueDate || c.startDate)
+  };
+  const pop = document.createElement('div');
+  pop.className = 'mini-popover';
+  datesPopoverEl = pop;
+  renderDatesPopover();
+  positionPopover(pop, evt.currentTarget);
+}
+function renderDatesPopover(){
+  if(!datesPopoverEl || !dpState) return;
+  const {viewYear, viewMonth, due, dueOn} = dpState;
+  const first = new Date(viewYear, viewMonth, 1);
+  const startDow = first.getDay();
+  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+  const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+  const monthLabel = first.toLocaleDateString('en-US', {month:'long', year:'numeric'});
+  const cells = [];
+  for(let i=startDow-1; i>=0; i--) cells.push({day: daysInPrevMonth-i, muted:true, ymd:null});
+  for(let d=1; d<=daysInMonth; d++) cells.push({day:d, muted:false, ymd: dpYmd(viewYear,viewMonth,d)});
+  let trailing = 1;
+  while(cells.length % 7 !== 0) cells.push({day: trailing++, muted:true, ymd:null});
+  const dows = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  datesPopoverEl.innerHTML = `
+    <div class="mp-head">Date<button class="cm-icon-btn" onclick="closeDatesPopover()">✕</button></div>
+    <div class="dp-cal-head">
+      <div class="dp-cal-title">${monthLabel}</div>
+      <div class="dp-cal-nav">
+        <button type="button" class="dp-cal-btn" onclick="dpNavMonth(-1)">‹</button>
+        <button type="button" class="dp-cal-btn" onclick="dpNavMonth(1)">›</button>
+      </div>
+    </div>
+    <div class="dp-cal-grid">
+      ${dows.map(d=>`<div class="dp-cal-dow">${d}</div>`).join('')}
+      ${cells.map(cell=>{
+        if(cell.muted) return `<div class="dp-cal-day dp-muted">${cell.day}</div>`;
+        const cls = 'dp-cal-day' + (cell.ymd === due ? ' dp-selected' : '');
+        return `<button type="button" class="${cls}" onclick="dpPickDay('${cell.ymd}')">${cell.day}</button>`;
+      }).join('')}
+    </div>
+    <div class="dp-field">
+      <label><input type="checkbox" ${dueOn?'checked':''} onchange="dpToggle(this.checked)">Date</label>
+      <input type="date" value="${escAttr(due)}" ${dueOn?'':'disabled'} onchange="dpSetDate(this.value)">
+    </div>
+    <div class="dp-actions">
+      <button type="button" class="btn btn-primary btn-sm" onclick="dpSave()">Save</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="dpRemove()">Remove</button>
+    </div>
+  `;
+}
+function dpNavMonth(delta){
+  if(!dpState) return;
+  let m = dpState.viewMonth + delta, y = dpState.viewYear;
+  if(m < 0){ m = 11; y--; }
+  if(m > 11){ m = 0; y++; }
+  dpState.viewMonth = m; dpState.viewYear = y;
+  renderDatesPopover();
+}
+function dpPickDay(ymdStr){
+  if(!dpState || !ymdStr) return;
+  dpState.due = ymdStr; dpState.dueOn = true;
+  renderDatesPopover();
+}
+function dpToggle(on){
+  if(!dpState) return;
+  dpState.dueOn = on;
+  renderDatesPopover();
+}
+function dpSetDate(val){
+  if(!dpState) return;
+  dpState.due = val;
+  if(val){
+    dpState.dueOn = true;
+    const d = parseYmd(val);
+    if(d){ dpState.viewYear = d.getFullYear(); dpState.viewMonth = d.getMonth(); }
+  }
+  renderDatesPopover();
+}
+function dpSave(){
+  if(!dpState) return;
+  const patch = {startDate: '', dueDate: dpState.dueOn ? dpState.due : ''};
+  const c = cardById(dpState.cardId);
+  cardUpdate(dpState.cardId, patch);
+  if(c){ c.startDate = patch.startDate; c.dueDate = patch.dueDate; }
+  closeDatesPopover();
+  if(openCardId) renderCardModal();
+}
+function dpRemove(){
+  if(!dpState) return;
+  const c = cardById(dpState.cardId);
+  cardUpdate(dpState.cardId, {startDate:'', dueDate:''});
+  if(c){ c.startDate = ''; c.dueDate = ''; }
+  closeDatesPopover();
+  if(openCardId) renderCardModal();
+}
+
 /* ---------------- Labels panel ----------------
    Labels belong to the board, so creating or renaming one here changes it
    everywhere it's used. Ticking a box only affects the open card. */
@@ -3002,6 +3383,32 @@ function toggleLabelFromPanel(labelId){
 }
 
 /* Checklist — whole-array update (card-level granularity is fine here) */
+/* Attachments — link-only, whole-array update like the checklist above. */
+function addAttachment(cardId){
+  const urlInput = document.getElementById('newAttachUrl');
+  const titleInput = document.getElementById('newAttachTitle');
+  let url = (urlInput?.value || '').trim();
+  const title = (titleInput?.value || '').trim();
+  if(!url) return;
+  if(!/^[a-z][a-z0-9+.-]*:/i.test(url) && !url.startsWith('/') && !url.startsWith('#')){
+    url = 'https://' + url;
+  }
+  if(!isSafeUrl(url)){ showToast("That link type isn't allowed"); return; }
+  const c = cardById(cardId);
+  if(!c) return;
+  const item = {id: uid(), url, title, at: Date.now()};
+  cardUpdate(cardId, {attachments: [...(c.attachments||[]), item]});
+  urlInput.value = '';
+  if(titleInput) titleInput.value = '';
+  urlInput.focus();
+}
+function removeAttachment(cardId, i){
+  const c = cardById(cardId);
+  if(!c) return;
+  const list = (c.attachments||[]).filter((_,idx)=> idx!==i);
+  cardUpdate(cardId, {attachments: list});
+}
+
 function toggleCheckItem(cardId, i){
   const c = cardById(cardId);
   if(!c) return;
@@ -3032,6 +3439,52 @@ function setCheckItemDue(cardId, i, due){
   if(!c) return;
   const cl = (c.checklist||[]).map((item,idx)=> idx===i ? {...item, due: due || ''} : item);
   cardUpdate(cardId, {checklist: cl});
+}
+
+/* Checklist item reorder via drag-and-drop. Only one card modal is open at a
+   time, so a single module-level source index (rather than dragState, which
+   is keyed by id) is enough to track the drag. */
+let ciDragSrc = null;
+function ciDragStart(e, i){
+  ciDragSrc = i;
+  e.dataTransfer.effectAllowed = 'move';
+  try{ e.dataTransfer.setData('text/plain', String(i)); }catch(_){}
+  e.target.closest('.check-item').classList.add('ci-dragging');
+  e.stopPropagation();
+}
+function ciDragOver(e, i){
+  if(ciDragSrc == null || ciDragSrc === i) return;
+  e.preventDefault(); e.stopPropagation();
+  e.dataTransfer.dropEffect = 'move';
+  const row = e.currentTarget;
+  row.classList.remove('ci-drag-over-top','ci-drag-over-bottom');
+  const before = (e.clientY - row.getBoundingClientRect().top) < row.offsetHeight / 2;
+  row.classList.add(before ? 'ci-drag-over-top' : 'ci-drag-over-bottom');
+}
+function ciDragLeave(e){
+  e.currentTarget.classList.remove('ci-drag-over-top','ci-drag-over-bottom');
+}
+function ciDrop(e, cardId, targetIndex){
+  e.preventDefault(); e.stopPropagation();
+  const row = e.currentTarget;
+  const before = row.classList.contains('ci-drag-over-top');
+  row.classList.remove('ci-drag-over-top','ci-drag-over-bottom');
+  const srcIndex = ciDragSrc;
+  ciDragSrc = null;
+  if(srcIndex == null || srcIndex === targetIndex) return;
+  const c = cardById(cardId);
+  if(!c) return;
+  const cl = (c.checklist||[]).slice();
+  const [moved] = cl.splice(srcIndex, 1);
+  let insertAt = targetIndex - (srcIndex < targetIndex ? 1 : 0) + (before ? 0 : 1);
+  cl.splice(insertAt, 0, moved);
+  cardUpdate(cardId, {checklist: cl});
+}
+function ciDragEnd(e){
+  ciDragSrc = null;
+  document.querySelectorAll('.ci-dragging, .ci-drag-over-top, .ci-drag-over-bottom').forEach(el=>{
+    el.classList.remove('ci-dragging','ci-drag-over-top','ci-drag-over-bottom');
+  });
 }
 
 /* Comments — arrayUnion/arrayRemove so concurrent posts never clobber */
@@ -3092,6 +3545,7 @@ async function duplicateCard(id){
     startDate: c.startDate || '',
     dueDate: c.dueDate || '',
     checklist: (c.checklist||[]).map(item=>({...item, id: uid()})),
+    attachments: (c.attachments||[]).map(a=>({...a, id: uid()})),
     comments: [],
     fields: {...(c.fields||{})},
     archived: false,
@@ -3105,6 +3559,102 @@ async function duplicateCard(id){
     showToast('Card duplicated');
   }catch(e){
     console.error(e); showToast("Couldn't duplicate card");
+  }
+}
+
+/* ---------------- Move / Copy card to another board ----------------
+   Labels and custom fields are defined per-board, so a card's labelIds and
+   fields values are meaningless on a different board — both are dropped
+   rather than carried over as orphaned references. */
+function openMoveCopyBoardChooser(cardId, mode){
+  closeCardMenu();
+  const otherBoards = boards.filter(b=>b.id !== currentBoardId).slice().sort((a,b)=>(a.pos||0)-(b.pos||0));
+  if(!otherBoards.length){ showToast('No other boards to ' + (mode==='move' ? 'move to' : 'copy to')); return; }
+  openChooser({
+    title: mode === 'move' ? 'Move Card to Board' : 'Copy Card to Board',
+    sub: 'Choose a destination board.',
+    choices: otherBoards.map(b=>({
+      title: escHtml(b.name || 'Untitled board'),
+      desc: mode === 'move' ? 'Move this card there' : 'Copy this card there',
+      onPick: ()=> openMoveCopyListChooser(cardId, b.id, mode)
+    }))
+  });
+}
+async function openMoveCopyListChooser(cardId, targetBoardId, mode){
+  let targetLists;
+  try{
+    const snap = await listsRef(targetBoardId).get();
+    targetLists = snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(a.pos||0)-(b.pos||0));
+  }catch(e){
+    console.error(e); showToast("Couldn't load that board's lists"); return;
+  }
+  if(!targetLists.length){ showToast('That board has no lists yet'); return; }
+  openChooser({
+    title: (mode === 'move' ? 'Move' : 'Copy') + ' to Which List?',
+    sub: '',
+    choices: targetLists.map(l=>({
+      title: escHtml(l.name || 'Untitled list'),
+      desc: '',
+      onPick: ()=> mode === 'move'
+        ? moveCardToBoard(cardId, targetBoardId, l.id)
+        : copyCardToBoard(cardId, targetBoardId, l.id)
+    }))
+  });
+}
+async function copyCardToBoard(cardId, targetBoardId, targetListId){
+  const c = cardById(cardId);
+  if(!c) return;
+  try{
+    const snap = await cardsRef(targetBoardId).where('listId','==',targetListId).get();
+    const pos = maxPos(snap.docs.map(d=>d.data())) + 1000;
+    await cardsRef(targetBoardId).doc(uid()).set({
+      listId: targetListId, pos,
+      title: c.title || 'Untitled',
+      desc: c.desc || '',
+      labelIds: [],
+      memberIds: [...(c.memberIds||[])],
+      startDate: c.startDate || '',
+      dueDate: c.dueDate || '',
+      checklist: (c.checklist||[]).map(item=>({...item, id: uid()})),
+      attachments: (c.attachments||[]).map(a=>({...a, id: uid()})),
+      comments: [],
+      fields: {},
+      archived: false,
+      createdAt: new Date().toISOString()
+    });
+    touchBoard();
+    showToast('Card copied to board');
+  }catch(e){
+    console.error(e); showToast("Couldn't copy card");
+  }
+}
+async function moveCardToBoard(cardId, targetBoardId, targetListId){
+  const c = cardById(cardId);
+  if(!c) return;
+  try{
+    const snap = await cardsRef(targetBoardId).where('listId','==',targetListId).get();
+    const pos = maxPos(snap.docs.map(d=>d.data())) + 1000;
+    await cardsRef(targetBoardId).doc(cardId).set({
+      listId: targetListId, pos,
+      title: c.title || 'Untitled',
+      desc: c.desc || '',
+      labelIds: [],
+      memberIds: [...(c.memberIds||[])],
+      startDate: c.startDate || '',
+      dueDate: c.dueDate || '',
+      checklist: c.checklist || [],
+      attachments: c.attachments || [],
+      comments: c.comments || [],
+      fields: {},
+      archived: false,
+      createdAt: c.createdAt || new Date().toISOString()
+    });
+    await cardsRef(currentBoardId).doc(cardId).delete();
+    touchBoard();
+    closeCardModal();
+    showToast('Card moved to board');
+  }catch(e){
+    console.error(e); showToast("Couldn't move card");
   }
 }
 
@@ -3359,12 +3909,20 @@ function hashCode(s){
   return h;
 }
 
+function showGateForm(){
+  const checking = document.getElementById('gateChecking');
+  const formWrap = document.getElementById('gateFormWrap');
+  if(checking) checking.hidden = true;
+  if(formWrap) formWrap.hidden = false;
+}
+
 auth.onAuthStateChanged(async user=>{
   if(user && !isStaffUser(user)){
     const why = `${user.email} isn't an @${ALLOWED_DOMAIN} account. The portal is limited to NMR staff.`;
     currentUser = null;
     renderMe();
     document.getElementById('authGate').hidden = false;
+    showGateForm();
     showGateError(why, true);
     return;
   }
@@ -3374,6 +3932,7 @@ auth.onAuthStateChanged(async user=>{
 
   if(!user){
     document.getElementById('authGate').hidden = false;
+    showGateForm();
     return;
   }
 
