@@ -1,9 +1,10 @@
 rules_version = '2';
 
 /* NMR Digital Portal — Firestore security rules.
-   Covers both modules against the shared nmr-digital-estimates project:
-   the Estimate Builder (estimates, library, settings, presence) and the
-   Project Planner (boards + subcollections, members).
+   Covers all three modules against the shared nmr-digital-estimates project:
+   the Estimate Builder (estimates, library, settings, presence), the
+   Project Planner (boards + subcollections, members), and Meeting Notes
+   (meetings).
 
    Access is gated on a signed-in account whose address is on the company
    domain. The web API key in each app's page source is public by design and
@@ -65,6 +66,12 @@ service cloud.firestore {
       allow update: if isStaff()
         && (request.auth.uid == memberId || resource.data.isPlaceholder == true);
     }
+
+    /* ---- Meeting Notes ---- */
+    // Meeting Notes also writes directly into boards/estimates (its "turn
+    // this into a project card / estimate" actions), which the rules above
+    // already cover for any staff account.
+    match /meetings/{meetingId} { allow read, write: if isStaff(); }
 
     // Anything not named above is denied outright, so a collection added
     // later fails closed rather than being world-writable by default.
