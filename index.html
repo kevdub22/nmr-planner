@@ -158,6 +158,10 @@
     padding:20px 22px;
     margin-bottom:20px;
   }
+  .card-title{
+    font-size:13px; font-weight:700; color:var(--navy);
+    text-transform:uppercase; letter-spacing:0.6px; margin-bottom:14px;
+  }
   label{
     display:block; font-size:11px; font-weight:700; color:var(--gray-text);
     text-transform:uppercase; letter-spacing:0.4px; margin-bottom:5px;
@@ -1267,7 +1271,6 @@
     <nav class="nav-links" id="navLinks">
       <div class="nav-item active" data-view="boards" id="navBoards">Boards <span class="nav-count" id="boardCount">0</span></div>
       <div id="navBoardList"></div>
-      <div class="nav-item" data-view="members" id="navMembers">Team Members</div>
       <a class="nav-item" href="https://nmrestimates.netlify.app" target="_blank" rel="noopener">Estimates ↗</a>
       <a class="nav-item" href="https://nmrmeetings.netlify.app" target="_blank" rel="noopener">Meetings ↗</a>
       <div class="brand-caption">
@@ -1312,7 +1315,7 @@
           </button>
           <button class="btn btn-ghost btn-sm" id="archiveBtn" onclick="toggleArchiveView()">🗄 Archive</button>
           <button class="btn btn-ghost btn-sm" id="myJobsBtn" onclick="toggleMyJobsFilter()" title="Show only cards assigned to you">👤 My Jobs</button>
-          <button class="btn btn-ghost btn-sm" onclick="switchView('members')">Members</button>
+          <button class="btn btn-ghost btn-sm" onclick="switchView('members')">⚙ Settings</button>
           <button class="btn btn-ghost btn-sm" onclick="goHome()">All Boards</button>
         </div>
       </div>
@@ -1322,16 +1325,18 @@
       <div class="archive-panel" id="archivePanel" style="display:none;"></div>
     </div>
 
-    <!-- MEMBERS VIEW -->
+    <!-- SETTINGS VIEW -->
     <div id="view-members" style="display:none;">
       <div class="toolbar">
         <div>
-          <h1>Team Members</h1>
-          <div class="page-sub" style="margin-bottom:0;">People appear here automatically the first time they sign in — you can edit your own name, and it updates everywhere you're mentioned. Add someone below to assign them cards before they have an account.</div>
+          <h1>Settings</h1>
+          <div class="page-sub" style="margin-bottom:0;">Account and workspace-wide settings.</div>
         </div>
         <div class="toolbar-actions" id="membersBackBtn"></div>
       </div>
       <div class="card" style="max-width:560px;">
+        <div class="card-title">Team Members</div>
+        <div class="page-sub" style="margin:-6px 0 14px 0;">People appear here automatically the first time they sign in to Planner, Estimates, or Meetings — you can edit your own name, and it updates everywhere. Add someone below to assign them cards before they have an account.</div>
         <div id="rosterList"></div>
         <div class="roster-add" id="rosterAdd"></div>
       </div>
@@ -1684,7 +1689,6 @@ function switchView(view){
     document.getElementById('view-'+v).style.display = (v===view) ? '' : 'none';
   });
   document.getElementById('navBoards').classList.toggle('active', view==='boards' || view==='board');
-  document.getElementById('navMembers').classList.toggle('active', view==='members');
   if(view === 'members'){
     renderRoster();
     document.getElementById('membersBackBtn').innerHTML = currentBoardId
@@ -1694,7 +1698,6 @@ function switchView(view){
   closeMobileNav();
 }
 document.getElementById('navBoards').addEventListener('click', goHome);
-document.getElementById('navMembers').addEventListener('click', ()=> switchView('members'));
 
 function renderNav(){
   document.getElementById('boardCount').textContent = boards.length;
@@ -4696,7 +4699,7 @@ function renderMe(){
   if(!currentUser){ box.innerHTML = ''; return; }
   box.innerHTML = `
     <div class="me-name">${escHtml(currentUser.displayName || currentUser.email)}</div>
-    <button class="me-signout" onclick="signOutNow()">Sign out</button>`;
+    <button class="me-signout" onclick="switchView('members')">Settings</button> · <button class="me-signout" onclick="signOutNow()">Sign out</button>`;
 }
 
 /* The signed-in account is the source of identity: their member doc is keyed
