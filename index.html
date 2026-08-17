@@ -851,7 +851,12 @@
     text-transform:uppercase; letter-spacing:0.4px; margin-bottom:8px;
   }
   #labelList{max-height:46vh; overflow-y:auto; margin-bottom:12px;}
-  .lb-row{display:flex; align-items:center; gap:9px; margin-bottom:7px;}
+  .lb-row{display:flex; align-items:center; gap:9px; margin-bottom:7px; border-top:2px solid transparent; border-bottom:2px solid transparent;}
+  .lb-row.lb-dragging{opacity:0.4;}
+  .lb-row.lb-drag-over-top{border-top-color:var(--teal);}
+  .lb-row.lb-drag-over-bottom{border-bottom-color:var(--teal);}
+  .lb-drag-handle{cursor:grab; color:#c2c8d1; font-size:12px; flex-shrink:0; user-select:none; padding:0 1px;}
+  .lb-drag-handle:active{cursor:grabbing;}
   .lb-row input[type=checkbox]{
     width:17px; height:17px; accent-color:var(--navy); cursor:pointer; margin:0; flex-shrink:0;
   }
@@ -3872,6 +3877,7 @@ function dpRemove(){
    Labels belong to the board, so creating or renaming one here changes it
    everywhere it's used. Ticking a box only affects the open card. */
 let labelEditing = null; // label id being edited, or '__new__'
+let lbDragId = null; // label id being dragged, for reordering
 
 function labelTextColor(bg){
   // Darkened version of the label's own colour, so text stays legible on every
@@ -3984,11 +3990,15 @@ function renderLabelsPanel(){
     wrap.innerHTML = `<div class="lb-empty">${q ? 'No labels match that search.' : 'No labels on this board yet.'}</div>`;
     return;
   }
+  const reorderable = !q;
   wrap.innerHTML = shown.map(l=>{
     if(l.id === labelEditing) return labelEditorHtml(l, false);
     const on = c ? (c.labelIds||[]).includes(l.id) : false;
     return `
-    <div class="lb-row">
+    <div class="lb-row"${reorderable ? `
+      ondragover="lbDragOver(event,'${l.id}')" ondragleave="lbDragLeave(event)" ondrop="lbDrop(event,'${l.id}')"` : ''}>
+      ${reorderable ? `<span class="lb-drag-handle" draggable="true" title="Drag to reorder"
+        ondragstart="lbDragStart(event,'${l.id}')" ondragend="lbDragEnd(event)">&#9776;</span>` : ''}
       <input type="checkbox" ${on?'checked':''} ${c?'':'disabled'}
         onchange="toggleLabelFromPanel('${l.id}')" aria-label="${escAttr(l.name)}">
       <button class="lb-pill" style="background:${escAttr(l.color)}; color:${labelTextColor(l.color)}"
@@ -4097,6 +4107,51 @@ function toggleLabelFromPanel(labelId){
     c.labelIds = on ? (c.labelIds||[]).filter(x=>x!==labelId) : [...(c.labelIds||[]), labelId];
   }
   renderLabelsPanel();
+}
+function lbDragStart(e, id){
+  lbDragId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  try{ e.dataTransfer.setData('text/plain', id); }catch(_){}
+  e.target.closest('.lb-row').classList.add('lb-dragging');
+  e.stopPropagation();
+}
+function lbDragOver(e, id){
+  if(!lbDragId || lbDragId === id) return;
+  e.preventDefault(); e.stopPropagation();
+  e.dataTransfer.dropEffect = 'move';
+  const row = e.currentTarget;
+  row.classList.remove('lb-drag-over-top','lb-drag-over-bottom');
+  const before = (e.clientY - row.getBoundingClientRect().top) < row.offsetHeight / 2;
+  row.classList.add(before ? 'lb-drag-over-top' : 'lb-drag-over-bottom');
+}
+function lbDragLeave(e){
+  e.currentTarget.classList.remove('lb-drag-over-top','lb-drag-over-bottom');
+}
+async function lbDrop(e, targetId){
+  e.preventDefault(); e.stopPropagation();
+  const row = e.currentTarget;
+  const before = row.classList.contains('lb-drag-over-top');
+  row.classList.remove('lb-drag-over-top','lb-drag-over-bottom');
+  const srcId = lbDragId;
+  lbDragId = null;
+  if(!srcId || srcId === targetId) return;
+  const labels = boardLabels().map(l=>({...l}));
+  const srcIndex = labels.findIndex(l=>l.id === srcId);
+  if(srcIndex === -1) return;
+  const [moved] = labels.splice(srcIndex, 1);
+  const targetIndex = labels.findIndex(l=>l.id === targetId);
+  if(targetIndex === -1) return;
+  labels.splice(targetIndex + (before ? 0 : 1), 0, moved);
+  await persistLabels(labels);
+  renderLabelsPanel();
+  if(openCardId) renderCardModal();
+  scheduleBoardRender();
+}
+function lbDragEnd(e){
+  lbDragId = null;
+  document.querySelectorAll('.lb-row.lb-dragging, .lb-row.lb-drag-over-top, .lb-row.lb-drag-over-bottom').forEach(el=>{
+    el.classList.remove('lb-dragging','lb-drag-over-top','lb-drag-over-bottom');
+  });
 }
 
 /* Checklist — whole-array update (card-level granularity is fine here) */
