@@ -2298,6 +2298,49 @@ function renderCalendarPanel(){
    instead of the navy sidebar) — 301x177 PNG, ~10KB. */
 const NMR_LOGO_PNG = "data:image/png;base64,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";
 
+/* Colors mirror the Estimate Builder's invoice PDF (var(--navy)/var(--teal)/
+   var(--gray-text)/var(--gray-border)/#1c2431 body text) so a board report
+   and a client estimate feel like the same document family. */
+const PDF_NAVY = [8,31,66], PDF_GRAYTEXT = [90,100,114],
+      PDF_DARK = [28,36,49], PDF_GRAYBORDER = [221,225,231];
+
+/* A bordered, rounded two-column label/value box — the report's equivalent
+   of the invoice's .inv-meta block. Items are split column-major, first
+   half left, second half right, same as the invoice does. */
+function drawPdfMetaBox(doc, x, y, width, items){
+  const half = Math.ceil(items.length / 2);
+  const col1 = items.slice(0, half), col2 = items.slice(half);
+  const padX = 24, padY = 20, colGap = 40, itemH = 34;
+  const colW = (width - padX*2 - colGap) / 2;
+  const boxH = padY*2 + Math.max(col1.length, col2.length) * itemH - 10;
+  doc.setDrawColor(...PDF_NAVY); doc.setLineWidth(1.5);
+  doc.roundedRect(x, y, width, boxH, 6, 6, 'S');
+  const drawCol = (col, colX)=>{
+    let iy = y + padY + 9;
+    col.forEach(([label, value])=>{
+      doc.setFont(undefined,'bold'); doc.setFontSize(8.5); doc.setTextColor(...PDF_GRAYTEXT);
+      doc.text(label.toUpperCase(), colX, iy, {charSpace:0.4});
+      doc.setFont(undefined,'normal'); doc.setFontSize(12.5); doc.setTextColor(...PDF_DARK);
+      doc.text(value, colX, iy+15);
+      iy += itemH;
+    });
+  };
+  drawCol(col1, x+padX);
+  drawCol(col2, x+padX+colW+colGap);
+  return y + boxH;
+}
+
+/* A solid navy bar with uppercase white text — mirrors the invoice's
+   .inv-section-title banners that head each estimate section. */
+function drawPdfBanner(doc, x, y, width, title){
+  const h = 22;
+  doc.setFillColor(...PDF_NAVY);
+  doc.rect(x, y, width, h, 'F');
+  doc.setFont(undefined,'bold'); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
+  doc.text(title.toUpperCase(), x+10, y+14.5, {charSpace:0.4});
+  return y + h;
+}
+
 async function exportBoardPdf(){
   if(!window.jspdf || !window.jspdf.jsPDF){
     showToast("PDF library didn't load — check your connection and try again");
@@ -2314,54 +2357,46 @@ async function exportBoardPdf(){
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 40;
+  const contentW = pageW - margin*2;
 
+  // ---- Header: logo left, doc title right — same layout as the invoice ----
   const logoW = 90, logoH = logoW * 177 / 301;
-  doc.addImage(NMR_LOGO_PNG, 'PNG', pageW - margin - logoW, 24, logoW, logoH);
-  const headTextX = margin;
-  let titleY = 46;
-  doc.setFont(undefined, 'bold'); doc.setFontSize(18); doc.setTextColor(8,31,66);
-  doc.text(boardName, headTextX, titleY);
-  doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(110);
-  doc.text(`Board report — generated ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}`, headTextX, titleY+16);
+  doc.addImage(NMR_LOGO_PNG, 'PNG', margin, 30, logoW, logoH);
+  doc.setFont(undefined,'bold'); doc.setFontSize(19); doc.setTextColor(...PDF_NAVY);
+  doc.text('BOARD REPORT', pageW - margin, 46, {align:'right', charSpace:1.2});
+  doc.setFont(undefined,'normal'); doc.setFontSize(11); doc.setTextColor(...PDF_GRAYTEXT);
+  doc.text(boardName, pageW - margin, 63, {align:'right'});
+  doc.text(`Generated ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}`, pageW - margin, 77, {align:'right'});
 
-  // ---- Summary ----
+  let y = 30 + logoH + 26;
+
+  // ---- Summary, as a bordered meta box instead of a plain table ----
   const overdue = active.filter(c=>c.dueDate && c.dueDate < todayYmd).length;
   const noDue = active.filter(c=>!c.dueDate).length;
   const weekAhead = new Date(); weekAhead.setDate(weekAhead.getDate()+7);
   const weekYmd = calYmd(weekAhead.getFullYear(), weekAhead.getMonth(), weekAhead.getDate());
   const dueSoon = active.filter(c=>c.dueDate && c.dueDate >= todayYmd && c.dueDate <= weekYmd).length;
 
-  const summaryY = titleY + 40;
-  doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(8,31,66);
-  doc.text('Summary', margin, summaryY);
-  doc.autoTable({
-    startY: summaryY+8,
-    theme: 'plain',
-    styles: {fontSize:9, textColor:[28,36,49]},
-    body: [
-      ['Active cards', String(active.length)],
-      ['Overdue', String(overdue)],
-      ['Due within 7 days', String(dueSoon)],
-      ['No due date set', String(noDue)],
-      ['Archived', String(archivedCount)]
-    ],
-    columnStyles: {0:{fontStyle:'bold', cellWidth:160}}
-  });
+  y = drawPdfMetaBox(doc, margin, y, contentW, [
+    ['Active Cards', String(active.length)],
+    ['Overdue', String(overdue)],
+    ['Due Within 7 Days', String(dueSoon)],
+    ['No Due Date', String(noDue)],
+    ['Archived', String(archivedCount)]
+  ]);
+  y += 24;
 
   // ---- Cards by list ----
   const byList = {};
   lists.forEach(l=>{ byList[l.id] = {name:l.name||'Untitled list', count:0}; });
   active.forEach(c=>{ if(byList[c.listId]) byList[c.listId].count++; });
-  let y = doc.lastAutoTable.finalY + 20;
-  doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(8,31,66);
-  doc.text('Cards by List', margin, y);
+  y = drawPdfBanner(doc, margin, y, contentW, 'Cards by List');
   doc.autoTable({
-    startY: y+8,
-    head: [['List','Cards']],
+    startY: y,
+    theme: 'grid',
     body: Object.values(byList).map(x=>[x.name, String(x.count)]),
-    styles: {fontSize:9},
-    headStyles: {fillColor:[8,31,66], textColor:255},
-    columnStyles: {1:{halign:'right', cellWidth:60}}
+    styles: {fontSize:9.5, textColor:PDF_DARK, lineColor:PDF_GRAYBORDER, lineWidth:0.5, cellPadding:8},
+    columnStyles: {1:{halign:'right', cellWidth:60, fontStyle:'bold', textColor:PDF_NAVY}}
   });
 
   // ---- Status breakdown, if this board has a Status-like dropdown field ----
@@ -2373,16 +2408,14 @@ async function exportBoardPdf(){
       const v = (c.fields||{})[statusField.id];
       if(v && counts[v]) counts[v].count++;
     });
-    y = doc.lastAutoTable.finalY + 20;
-    doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(8,31,66);
-    doc.text(`Cards by ${statusField.name}`, margin, y);
+    y = doc.lastAutoTable.finalY + 24;
+    y = drawPdfBanner(doc, margin, y, contentW, `Cards by ${statusField.name}`);
     doc.autoTable({
-      startY: y+8,
-      head: [[statusField.name, 'Cards']],
+      startY: y,
+      theme: 'grid',
       body: Object.values(counts).map(x=>[x.label, String(x.count)]),
-      styles: {fontSize:9},
-      headStyles: {fillColor:[8,31,66], textColor:255},
-      columnStyles: {1:{halign:'right', cellWidth:60}}
+      styles: {fontSize:9.5, textColor:PDF_DARK, lineColor:PDF_GRAYBORDER, lineWidth:0.5, cellPadding:8},
+      columnStyles: {1:{halign:'right', cellWidth:60, fontStyle:'bold', textColor:PDF_NAVY}}
     });
   }
 
@@ -2396,15 +2429,15 @@ async function exportBoardPdf(){
     const overdueRow = c.dueDate && c.dueDate < todayYmd;
     return [c.title||'Untitled', l?l.name:'', labelNames, c.dueDate ? fmtShortDate(c.dueDate) : '', memberNames, overdueRow];
   });
-  y = doc.lastAutoTable.finalY + 20;
-  doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(8,31,66);
-  doc.text('All Cards', margin, y);
+  y = doc.lastAutoTable.finalY + 24;
+  y = drawPdfBanner(doc, margin, y, contentW, 'All Cards');
   doc.autoTable({
-    startY: y+8,
+    startY: y,
+    theme: 'grid',
     head: [['Card','List','Labels','Due','Members']],
     body: rows.map(r=>r.slice(0,5)),
-    styles: {fontSize:8, cellPadding:5},
-    headStyles: {fillColor:[8,31,66], textColor:255},
+    styles: {fontSize:8, cellPadding:6, lineColor:PDF_GRAYBORDER, lineWidth:0.5},
+    headStyles: {fillColor:PDF_NAVY, textColor:255, fontStyle:'bold'},
     columnStyles: {0:{cellWidth:170}, 1:{cellWidth:70}, 2:{cellWidth:90}, 3:{cellWidth:55}},
     didParseCell: data=>{
       if(data.section === 'body' && data.column.index === 3 && rows[data.row.index][5]){
@@ -2414,9 +2447,42 @@ async function exportBoardPdf(){
     }
   });
 
-  // ---- Analysis: a plain-language read of the jobs and the money ----
-  // "NMR Estimate" / "Hard Cost Estimate" are free-text fields (people type
-  // "$4,250", "12 - 14k ish", etc.), not real numbers — parseMoneyValue()
+  // ---- Team Workload: who's carrying what — the reason this report goes to
+  // leadership, so it gets its own section rather than living only in prose. ----
+  const byMember = {};
+  active.forEach(c=>{
+    (c.memberIds||[]).forEach(id=>{
+      const m = memberById(id);
+      if(!m) return;
+      if(!byMember[id]) byMember[id] = {name:m.name, count:0, titles:[]};
+      byMember[id].count++;
+      byMember[id].titles.push(c.title||'Untitled');
+    });
+  });
+  const memberLoad = Object.values(byMember).sort((a,b)=> b.count - a.count);
+  const unassignedCards = active.filter(c=>!(c.memberIds||[]).length);
+  const workloadRows = memberLoad.map(m=>[m.name, String(m.count), m.titles.join('; ')]);
+  if(unassignedCards.length) workloadRows.push(['Unassigned', String(unassignedCards.length), unassignedCards.map(c=>c.title||'Untitled').join('; ')]);
+  if(workloadRows.length){
+    y = doc.lastAutoTable.finalY + 24;
+    y = drawPdfBanner(doc, margin, y, contentW, 'Team Workload');
+    doc.autoTable({
+      startY: y,
+      theme: 'grid',
+      head: [['Team Member','Active Jobs','Working On']],
+      body: workloadRows,
+      styles: {fontSize:8.5, cellPadding:6, lineColor:PDF_GRAYBORDER, lineWidth:0.5, valign:'top'},
+      headStyles: {fillColor:PDF_NAVY, textColor:255, fontStyle:'bold'},
+      columnStyles: {
+        0:{cellWidth:110, fontStyle:'bold', textColor:PDF_DARK},
+        1:{halign:'right', cellWidth:70, fontStyle:'bold', textColor:PDF_NAVY}
+      }
+    });
+  }
+
+  // ---- Analysis: a plain-language read of the jobs, the people, and the
+  // money. "NMR Estimate" / "Hard Cost Estimate" are free-text fields (people
+  // type "$4,250", "12 - 14k ish", etc.), not real numbers — parseMoneyValue()
   // pulls the first readable figure out and skips whatever it can't parse,
   // so the totals below are a best-effort read, not an exact ledger.
   const allFields = boardCustomFields();
@@ -2428,7 +2494,7 @@ async function exportBoardPdf(){
     if(hcField){ const v = parseMoneyValue((c.fields||{})[hcField.id]); if(v!=null){ totalHc+=v; hcCount++; } }
   });
   const usd = n => '$' + Math.round(n).toLocaleString('en-US');
-  const unassigned = active.filter(c=>!(c.memberIds||[]).length).length;
+  const unassigned = unassignedCards.length;
   const busiestList = Object.values(byList).filter(x=>x.count>0).sort((a,b)=>b.count-a.count)[0];
 
   let jobsPara = `This board currently has ${active.length} active job${active.length===1?'':'s'}`;
@@ -2439,6 +2505,22 @@ async function exportBoardPdf(){
   jobsPara += unassigned ? `, and ${unassigned} job${unassigned===1?'':'s'} ${unassigned===1?'has':'have'} nobody assigned yet` : '';
   jobsPara += archivedCount ? `. Separately, ${archivedCount} job${archivedCount===1?'':'s'} on this board ${archivedCount===1?'has':'have'} already been archived` : '';
   jobsPara += '.';
+
+  let peoplePara;
+  if(memberLoad.length){
+    const top = memberLoad[0];
+    peoplePara = `${memberLoad.length} team member${memberLoad.length===1?'':'s'} ${memberLoad.length===1?'is':'are'} currently carrying active jobs on this board. ${top.name} has the most at ${top.count} job${top.count===1?'':'s'} (${top.titles.slice(0,3).join(', ')}${top.titles.length>3?', and more':''})`;
+    if(memberLoad.length > 1){
+      const rest = memberLoad.slice(1).map(m=>`${m.name} (${m.count})`).join(', ');
+      peoplePara += `, followed by ${rest}`;
+    }
+    peoplePara += unassigned ? `. ${unassigned} job${unassigned===1?'':'s'} ${unassigned===1?'has':'have'} nobody assigned yet` : '';
+    peoplePara += '.';
+  } else {
+    peoplePara = unassigned
+      ? `Nobody is currently assigned to any of the ${active.length} active job${active.length===1?'':'s'} on this board.`
+      : `This board has no active jobs to assign right now.`;
+  }
 
   let moneyPara;
   if(nmrCount || hcCount){
@@ -2453,16 +2535,14 @@ async function exportBoardPdf(){
     moneyPara = `None of the active jobs on this board have a readable NMR Estimate or Hard Cost figure, so no revenue or margin total could be calculated from the data on file.`;
   }
 
-  y = doc.lastAutoTable.finalY + 26;
+  y = doc.lastAutoTable.finalY + 24;
   const pageBottom = pageH - 44;
-  if(y > pageBottom - 60){ doc.addPage(); y = 50; }
-  doc.setFont(undefined,'bold'); doc.setFontSize(13); doc.setTextColor(8,31,66);
-  doc.text('Analysis', margin, y);
-  y += 20;
-  doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(28,36,49);
-  const maxWidth = pageW - margin*2;
-  [jobsPara, moneyPara].forEach(para=>{
-    const lines = doc.splitTextToSize(para, maxWidth);
+  if(y > pageBottom - 80){ doc.addPage(); y = 50; }
+  y = drawPdfBanner(doc, margin, y, contentW, 'Analysis');
+  y += 16;
+  doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(...PDF_DARK);
+  [jobsPara, peoplePara, moneyPara].forEach(para=>{
+    const lines = doc.splitTextToSize(para, contentW);
     const blockHeight = lines.length * 13;
     if(y + blockHeight > pageBottom){ doc.addPage(); y = 50; }
     doc.text(lines, margin, y);
