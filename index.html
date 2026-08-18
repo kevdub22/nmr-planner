@@ -3526,6 +3526,7 @@ function renderCardModal(){
                 ${CI_CLOCK_SVG}${item.due ? `<span>${escHtml(fmtShortDate(item.due))}</span>` : ''}
               </button>
               <input type="date" class="ci-due-native" value="${escAttr(item.due||'')}" title="Due date for this item"
+                onclick="this.showPicker && this.showPicker()"
                 onchange="setCheckItemDue('${c.id}',${i},this.value)">
             </span>
             <button type="button" class="ci-icon-btn" title="${assignee ? escAttr(assignee.name) : 'Assign someone'}" onclick="openCiAssigneePopover(event,'${c.id}',${i})">
@@ -3969,23 +3970,38 @@ let ciAssigneeIndex = null;
 function closeCiAssigneePopover(){
   if(ciAssigneePopoverEl){ ciAssigneePopoverEl.remove(); ciAssigneePopoverEl = null; ciAssigneeCardId = null; ciAssigneeIndex = null; }
 }
-function renderCiAssigneePopoverBody(){
+function renderCiAssigneePopoverBody(filter){
   const c = cardById(ciAssigneeCardId);
   if(!c || !ciAssigneePopoverEl) return;
   const item = (c.checklist||[])[ciAssigneeIndex];
-  const cardMembers = members.filter(m=>(c.memberIds||[]).includes(m.id));
+  const q = (filter||'').trim().toLowerCase();
+  const match = m => !q || (m.name||'').toLowerCase().includes(q);
+  const onCard = members.filter(m => (c.memberIds||[]).includes(m.id));
+  const others = members.filter(m => !(c.memberIds||[]).includes(m.id));
   const row = m => `
     <div class="mp-row" onclick="pickCiAssignee('${m.id}')">
       <span class="avatar" style="background:${escAttr(m.color)}">${escAttr(m.initials)}</span>
       <span class="mp-name">${escHtml(m.name)}</span>
       ${item && item.memberId === m.id ? `<button class="mp-remove" title="Unassign" onclick="event.stopPropagation(); pickCiAssignee('')">✕</button>` : ''}
     </div>`;
-  ciAssigneePopoverEl.querySelector('.mp-body').innerHTML = cardMembers.length
-    ? cardMembers.map(row).join('')
-    : `<div class="mp-empty">Add this person to the card first, then you can assign them a checklist item.</div>`;
+  const onCardMatch = onCard.filter(match), othersMatch = others.filter(match);
+  ciAssigneePopoverEl.querySelector('.mp-body').innerHTML = `
+    ${onCardMatch.length ? `<div class="mp-label">Card members</div>${onCardMatch.map(row).join('')}` : ''}
+    <div class="mp-label">Board members</div>
+    ${othersMatch.length ? othersMatch.map(row).join('')
+      : `<div class="mp-empty">${members.length ? 'No matching members.' : 'Nobody has signed in yet — teammates appear here once they open the portal.'}</div>`}
+  `;
 }
+/* Picking someone who isn't on the card yet also adds them to the card's own
+   member list — otherwise "assign" would silently fail to stick for anyone
+   not already added, which is exactly the confusing dead-end this replaced. */
 function pickCiAssignee(memberId){
   if(ciAssigneeCardId == null || ciAssigneeIndex == null) return;
+  const c = cardById(ciAssigneeCardId);
+  if(memberId && c && !(c.memberIds||[]).includes(memberId)){
+    toggleMember(ciAssigneeCardId, memberId);
+    c.memberIds = [...(c.memberIds||[]), memberId];
+  }
   setCheckItemMember(ciAssigneeCardId, ciAssigneeIndex, memberId);
   closeCiAssigneePopover();
 }
@@ -3997,11 +4013,13 @@ function openCiAssigneePopover(evt, cardId, i){
   pop.className = 'mini-popover';
   pop.innerHTML = `
     <div class="mp-head">Assign<button class="cm-icon-btn" onclick="closeCiAssigneePopover()">✕</button></div>
+    <input type="text" class="mp-search" id="ciaSearch" placeholder="Search members..." oninput="renderCiAssigneePopoverBody(this.value)">
     <div class="mp-body"></div>
   `;
   ciAssigneePopoverEl = pop;
-  renderCiAssigneePopoverBody();
+  renderCiAssigneePopoverBody('');
   positionPopover(pop, evt.currentTarget);
+  document.getElementById('ciaSearch').focus();
 }
 
 /* Checklist item overflow menu — currently just "Remove", but its own menu
