@@ -1046,6 +1046,37 @@
   .check-item .ci-text:hover{border-color:var(--gray-border);}
   .check-item .ci-text:focus{background:var(--white); border-color:var(--teal); outline:none;}
   .check-item.done .ci-text{text-decoration:line-through; color:var(--gray-text);}
+  .check-item:hover{background:var(--gray-bg);}
+
+  /* Per-item actions: due date / assignee / overflow menu — a circular icon
+     button by default, the due button widening into a pill once a date is
+     set (mirrors the card-level .date-chip color language). */
+  .ci-actions{display:flex; align-items:center; gap:6px; flex-shrink:0;}
+  .ci-icon-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:24px; height:24px; border-radius:50%; flex-shrink:0; padding:0;
+    border:1px solid var(--gray-border); background:var(--white);
+    color:var(--gray-text); cursor:pointer; font-size:13px; line-height:1;
+  }
+  .ci-icon-btn:hover{border-color:var(--teal); color:var(--navy);}
+  .ci-icon-btn .avatar{width:22px; height:22px; margin:0; font-size:9.5px;}
+  .ci-due-wrap{position:relative; display:inline-flex; flex-shrink:0;}
+  .ci-due-btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:4px;
+    width:24px; height:24px; padding:0; border-radius:50%;
+    border:1px solid var(--gray-border); background:var(--white);
+    color:var(--gray-text); cursor:pointer; font-size:11px; font-weight:600;
+    font-family:inherit; flex-shrink:0;
+  }
+  .ci-due-btn.has-date{width:auto; padding:0 9px 0 7px; border-radius:12px;}
+  .ci-due-btn:hover{border-color:var(--teal); color:var(--navy);}
+  .ci-due-btn.due-over{background:#fdeae8; border-color:#f0c8c4; color:var(--red);}
+  .ci-due-btn.due-soon{background:#fdf0d5; border-color:#ecd9a8; color:#8a6100;}
+  .check-item.done .ci-due-btn{opacity:0.5;}
+  .ci-due-native{
+    position:absolute; inset:0; width:100%; height:100%;
+    opacity:0; border:0; padding:0; cursor:pointer;
+  }
   .check-add{display:flex; gap:6px; margin-top:6px;}
   .check-add input[type=text]{flex:1; min-width:0;}
   .attach-item{
@@ -1061,7 +1092,7 @@
   /* The element+attribute selector on input[type=date] above out-specifies a
      bare class, so this has to match on both to win back its own width. */
   input[type=date].ci-due{
-    width:132px; flex-shrink:0;
+    width:110px; flex-shrink:0;
     padding:3px 6px; font-size:11.5px;
     border:1px solid var(--gray-border); border-radius:4px;
     color:var(--gray-text); background:var(--white);
@@ -1073,7 +1104,7 @@
   input[type=date].ci-due.due-soon{border-color:#ecd9a8; background:#fdf0d5; color:#8a6100; opacity:1;}
   .check-item.done input[type=date].ci-due{opacity:0.4;}
   @media (max-width: 560px){
-    input[type=date].ci-due{width:118px; font-size:11px;}
+    input[type=date].ci-due{width:100px; font-size:11px;}
   }
   .row-remove{color:#b8bfc9; cursor:pointer; font-size:14px; padding:0 4px; background:none; border:none;}
   .row-remove:hover{color:var(--red);}
@@ -1505,6 +1536,11 @@ let membersReturnTo = 'boards';
 let myJobsFilter = false;
 
 const MEMBER_COLORS = ['#47b2cc','#1e8a5f','#e07b39','#8e6bb8','#c0392b','#17305e','#b8860b','#2e8b8b'];
+/* Inline icons for the checklist item action buttons — kept as tiny line-art
+   SVGs rather than emoji so they stay monochrome and match the rest of the
+   app's icon-button style at any size. */
+const CI_CLOCK_SVG = `<svg width="11" height="11" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.4"/><path d="M10 6v4l2.5 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const CI_PERSON_SVG = `<svg width="12" height="12" viewBox="0 0 20 20" fill="none"><circle cx="8.5" cy="6.5" r="3.2" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 17c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M15.5 5.5v5M13 8h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
 /* Per-board custom fields. Stored on the board so every card shares one
    definition, with each card holding only its own values under `fields`.
    Boards created before this existed fall back to these defaults. */
@@ -3188,6 +3224,8 @@ document.addEventListener('click', e=>{
   if(datesPopoverEl && !clickWasInside(e, datesPopoverEl)) closeDatesPopover();
   if(listActionsEl && !clickWasInside(e, listActionsEl)) closeListActionsMenu();
   if(viewSwitchEl && !clickWasInside(e, viewSwitchEl)) closeViewSwitcher();
+  if(ciAssigneePopoverEl && !clickWasInside(e, ciAssigneePopoverEl)) closeCiAssigneePopover();
+  if(ciMenuEl && !clickWasInside(e, ciMenuEl)) closeCiMenu();
 });
 
 // #cardModal itself is never replaced (only its innerHTML, on every render),
@@ -3212,6 +3250,8 @@ document.addEventListener('keydown', e=>{
     else if(datesPopoverEl) closeDatesPopover();
     else if(listActionsEl) closeListActionsMenu();
     else if(viewSwitchEl) closeViewSwitcher();
+    else if(ciAssigneePopoverEl) closeCiAssigneePopover();
+    else if(ciMenuEl) closeCiMenu();
     else if(menu && !menu.hidden) closeCardMenu();
     else if(openCardId) closeCardModal();
   }
@@ -3387,7 +3427,10 @@ function renderCardModal(){
     <div class="cm-section">
       <div class="cm-section-title">Checklist ${cl.length ? `<span style="text-transform:none; letter-spacing:0;">— ${done}/${cl.length}</span>` : ''}</div>
       ${cl.length ? `<div class="check-progress"><div class="check-progress-fill${done===cl.length?' done':''}" style="width:${progress}%"></div></div>` : ''}
-      ${cl.map((item,i)=>`
+      ${cl.map((item,i)=>{
+        const dueCls = item.due && !item.done ? dueClass(item.due) : '';
+        const assignee = item.memberId ? memberById(item.memberId) : null;
+        return `
         <div class="check-item${item.done?' done':''}" data-ci-index="${i}"
           ondragover="ciDragOver(event,${i})" ondragleave="ciDragLeave(event)" ondrop="ciDrop(event,'${c.id}',${i})">
           <span class="ci-drag-handle" draggable="true" title="Drag to reorder"
@@ -3395,11 +3438,21 @@ function renderCardModal(){
           <input type="checkbox" ${item.done?'checked':''} onchange="toggleCheckItem('${c.id}',${i})">
           <input type="text" class="ci-text" value="${escAttr(item.text)}"
             onblur="renameCheckItem('${c.id}',${i},this.value)" onkeydown="if(event.key==='Enter') this.blur()">
-          <input type="date" class="ci-due${item.due && !item.done ? ' ' + dueClass(item.due) : ''}"
-            id="ciDue-${i}" value="${escAttr(item.due||'')}" title="Due date for this item"
-            onchange="setCheckItemDue('${c.id}',${i},this.value)">
-          <button class="row-remove" onclick="removeCheckItem('${c.id}',${i})">✕</button>
-        </div>`).join('')}
+          <div class="ci-actions">
+            <span class="ci-due-wrap">
+              <button type="button" class="ci-due-btn${item.due?' has-date':''}${dueCls?' '+dueCls:''}" tabindex="-1" title="${item.due ? 'Due '+escAttr(fmtShortDate(item.due)) : 'Set a due date'}">
+                ${CI_CLOCK_SVG}${item.due ? `<span>${escHtml(fmtShortDate(item.due))}</span>` : ''}
+              </button>
+              <input type="date" class="ci-due-native" value="${escAttr(item.due||'')}" title="Due date for this item"
+                onchange="setCheckItemDue('${c.id}',${i},this.value)">
+            </span>
+            <button type="button" class="ci-icon-btn" title="${assignee ? escAttr(assignee.name) : 'Assign someone'}" onclick="openCiAssigneePopover(event,'${c.id}',${i})">
+              ${assignee ? `<span class="avatar" style="background:${escAttr(assignee.color)}">${escAttr(assignee.initials)}</span>` : CI_PERSON_SVG}
+            </button>
+            <button type="button" class="ci-icon-btn" title="More" onclick="openCiMenu(event,'${c.id}',${i})">⋯</button>
+          </div>
+        </div>`;
+      }).join('')}
       <div class="check-add">
         <input type="text" id="newCheckItem" placeholder="Add an item..." onkeydown="if(event.key==='Enter') addCheckItem('${c.id}')">
         <input type="date" id="newCheckItemDue" class="ci-due" title="Optional due date">
@@ -3823,6 +3876,66 @@ function openMembersPopover(evt, cardId){
   renderMembersPopoverBody('');
   positionPopover(pop, evt.currentTarget);
   document.getElementById('mpSearch').focus();
+}
+
+/* Checklist item assignee — same mini-popover shell as Members, but the
+   candidate list is the card's own members rather than the whole roster,
+   since assigning someone the card itself isn't watching wouldn't mean much. */
+let ciAssigneePopoverEl = null;
+let ciAssigneeCardId = null;
+let ciAssigneeIndex = null;
+function closeCiAssigneePopover(){
+  if(ciAssigneePopoverEl){ ciAssigneePopoverEl.remove(); ciAssigneePopoverEl = null; ciAssigneeCardId = null; ciAssigneeIndex = null; }
+}
+function renderCiAssigneePopoverBody(){
+  const c = cardById(ciAssigneeCardId);
+  if(!c || !ciAssigneePopoverEl) return;
+  const item = (c.checklist||[])[ciAssigneeIndex];
+  const cardMembers = members.filter(m=>(c.memberIds||[]).includes(m.id));
+  const row = m => `
+    <div class="mp-row" onclick="pickCiAssignee('${m.id}')">
+      <span class="avatar" style="background:${escAttr(m.color)}">${escAttr(m.initials)}</span>
+      <span class="mp-name">${escHtml(m.name)}</span>
+      ${item && item.memberId === m.id ? `<button class="mp-remove" title="Unassign" onclick="event.stopPropagation(); pickCiAssignee('')">✕</button>` : ''}
+    </div>`;
+  ciAssigneePopoverEl.querySelector('.mp-body').innerHTML = cardMembers.length
+    ? cardMembers.map(row).join('')
+    : `<div class="mp-empty">Add this person to the card first, then you can assign them a checklist item.</div>`;
+}
+function pickCiAssignee(memberId){
+  if(ciAssigneeCardId == null || ciAssigneeIndex == null) return;
+  setCheckItemMember(ciAssigneeCardId, ciAssigneeIndex, memberId);
+  closeCiAssigneePopover();
+}
+function openCiAssigneePopover(evt, cardId, i){
+  evt.stopPropagation();
+  closeCiAssigneePopover(); closeCiMenu(); closeMembersPopover(); closeDatesPopover();
+  ciAssigneeCardId = cardId; ciAssigneeIndex = i;
+  const pop = document.createElement('div');
+  pop.className = 'mini-popover';
+  pop.innerHTML = `
+    <div class="mp-head">Assign<button class="cm-icon-btn" onclick="closeCiAssigneePopover()">✕</button></div>
+    <div class="mp-body"></div>
+  `;
+  ciAssigneePopoverEl = pop;
+  renderCiAssigneePopoverBody();
+  positionPopover(pop, evt.currentTarget);
+}
+
+/* Checklist item overflow menu — currently just "Remove", but its own menu
+   (rather than a bare ✕ button) leaves room to grow without crowding the row. */
+let ciMenuEl = null;
+function closeCiMenu(){
+  if(ciMenuEl){ ciMenuEl.remove(); ciMenuEl = null; }
+}
+function openCiMenu(evt, cardId, i){
+  evt.stopPropagation();
+  closeCiMenu(); closeCiAssigneePopover(); closeMembersPopover(); closeDatesPopover();
+  const menu = document.createElement('div');
+  menu.className = 'cm-menu';
+  menu.innerHTML = `<button class="cm-menu-item danger" onclick="closeCiMenu(); removeCheckItem('${cardId}',${i});">Remove item</button>`;
+  ciMenuEl = menu;
+  positionPopover(menu, evt.currentTarget);
 }
 
 let datesPopoverEl = null;
@@ -4293,6 +4406,14 @@ function setCheckItemDue(cardId, i, due){
   const c = cardById(cardId);
   if(!c) return;
   const cl = (c.checklist||[]).map((item,idx)=> idx===i ? {...item, due: due || ''} : item);
+  cardUpdate(cardId, {checklist: cl});
+}
+/* A checklist item can only be assigned to someone already on the card —
+   the picker below draws from c.memberIds rather than the whole roster. */
+function setCheckItemMember(cardId, i, memberId){
+  const c = cardById(cardId);
+  if(!c) return;
+  const cl = (c.checklist||[]).map((item,idx)=> idx===i ? {...item, memberId: memberId || ''} : item);
   cardUpdate(cardId, {checklist: cl});
 }
 function renameCheckItem(cardId, i, text){
