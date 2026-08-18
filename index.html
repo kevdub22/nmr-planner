@@ -390,6 +390,19 @@
   .archive-row-meta{font-size:12px; color:var(--gray-text); display:flex; align-items:center; flex-wrap:wrap; gap:6px;}
   .archive-row-actions{display:flex; gap:6px; flex-shrink:0;}
 
+  .my-tasks-panel{flex:1; max-width:760px;}
+  .mt-row{
+    display:flex; align-items:center; gap:12px;
+    background:var(--white); border:1px solid var(--gray-border); border-radius:var(--radius);
+    padding:12px 14px; margin-bottom:8px;
+  }
+  .mt-row input[type=checkbox]{width:16px; height:16px; accent-color:var(--navy); cursor:pointer; flex-shrink:0; margin:0;}
+  .mt-row-main{flex:1; min-width:0; cursor:pointer;}
+  .mt-row-text{font-size:13.5px; font-weight:700; color:var(--navy);}
+  .mt-row.done .mt-row-text{text-decoration:line-through; color:var(--gray-text);}
+  .mt-row-meta{font-size:12px; color:var(--gray-text); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .mt-row .date-chip{flex-shrink:0;}
+
   .la-color-grid{display:grid; grid-template-columns:repeat(5, 26px); gap:7px; margin-bottom:12px;}
   .la-delete{width:100%; text-align:left;}
   .color-swatch{
@@ -1346,6 +1359,7 @@
           </button>
           <button class="btn btn-ghost btn-sm" id="archiveBtn" onclick="toggleArchiveView()">🗄 Archive</button>
           <button class="btn btn-ghost btn-sm" id="myJobsBtn" onclick="toggleMyJobsFilter()" title="Show only cards assigned to you">👤 My Jobs</button>
+          <button class="btn btn-ghost btn-sm" id="myTasksBtn" onclick="toggleMyTasksView()" title="Show checklist items assigned to you">📋 My Tasks</button>
           <button class="btn btn-ghost btn-sm" onclick="switchView('members')">⚙ Settings</button>
           <button class="btn btn-ghost btn-sm" onclick="goHome()">All Boards</button>
         </div>
@@ -1354,6 +1368,7 @@
       <div class="table-panel" id="tablePanel" style="display:none;"></div>
       <div class="calendar-panel" id="calendarPanel" style="display:none;"></div>
       <div class="archive-panel" id="archivePanel" style="display:none;"></div>
+      <div class="my-tasks-panel" id="myTasksPanel" style="display:none;"></div>
     </div>
 
     <!-- SETTINGS VIEW -->
@@ -2099,7 +2114,7 @@ function cardFrontHtml(c){
    'billing' and 'completed' are the same mechanism as a plain archive, just
    tagged with why it left the board, so the archive view can show that at a
    glance instead of every card looking identical. */
-let boardSubView = 'lanes'; // 'lanes' | 'table' | 'calendar' | 'archive'
+let boardSubView = 'lanes'; // 'lanes' | 'table' | 'calendar' | 'archive' | 'mytasks'
 
 function toggleArchiveView(){
   boardSubView = boardSubView === 'archive' ? 'lanes' : 'archive';
@@ -2113,6 +2128,21 @@ function updateArchiveToggleBtn(){
   const n = cards.filter(c=>c.archived).length;
   btn.textContent = boardSubView === 'archive' ? '← Back to Board' : `🗄 Archive${n ? ` (${n})` : ''}`;
   btn.classList.toggle('active', boardSubView === 'archive');
+}
+
+function toggleMyTasksView(){
+  boardSubView = boardSubView === 'mytasks' ? 'lanes' : 'mytasks';
+  closeCardMenu();
+  scheduleBoardRender();
+}
+
+function updateMyTasksToggleBtn(){
+  const btn = document.getElementById('myTasksBtn');
+  if(!btn) return;
+  const me = myMemberId();
+  const n = cards.filter(c=>!c.archived).reduce((sum,c)=> sum + (c.checklist||[]).filter(it=>it.memberId===me && !it.done).length, 0);
+  btn.textContent = boardSubView === 'mytasks' ? '← Back to Board' : `📋 My Tasks${n ? ` (${n})` : ''}`;
+  btn.classList.toggle('active', boardSubView === 'mytasks');
 }
 
 /* ---------------- Views switcher (Board / Table / Calendar) ----------------
@@ -2631,6 +2661,42 @@ function renderArchivePanel(){
   }).join('');
 }
 
+/* Checklist items assigned to the signed-in person, across every active card
+   on this board — a flat worklist rather than having to open each card to
+   find what's yours. Sorted so overdue/soonest work floats to the top and
+   already-done items sink to the bottom. */
+function renderMyTasksPanel(){
+  const wrap = document.getElementById('myTasksPanel');
+  const me = myMemberId();
+  const rows = [];
+  cards.filter(c=>!c.archived).forEach(c=>{
+    (c.checklist||[]).forEach((item,idx)=>{
+      if(item.memberId === me) rows.push({card:c, item, idx});
+    });
+  });
+  if(!rows.length){
+    wrap.innerHTML = `<div class="archive-empty">No checklist items assigned to you on this board.<br>Assign yourself one from a card's checklist.</div>`;
+    return;
+  }
+  rows.sort((a,b)=>{
+    if(a.item.done !== b.item.done) return a.item.done ? 1 : -1;
+    return (a.item.due||'9999-99-99').localeCompare(b.item.due||'9999-99-99');
+  });
+  wrap.innerHTML = rows.map(({card:c, item, idx})=>{
+    const l = listById(c.listId);
+    const dueCls = item.due && !item.done ? dueClass(item.due) : '';
+    return `
+    <div class="mt-row${item.done?' done':''}">
+      <input type="checkbox" ${item.done?'checked':''} onchange="toggleCheckItem('${c.id}',${idx})">
+      <div class="mt-row-main" onclick="openCardModal('${c.id}')">
+        <div class="mt-row-text">${escHtml(item.text)}</div>
+        <div class="mt-row-meta">${escHtml(c.title||'Untitled')}${l ? ` · ${escHtml(l.name)}` : ''}</div>
+      </div>
+      ${item.due ? `<span class="date-chip${dueCls?' '+dueCls:''}">${escHtml(fmtShortDate(item.due))}</span>` : ''}
+    </div>`;
+  }).join('');
+}
+
 /* Billing/Completed find-or-create the matching list on this board and move
    the card there, so it stays visible instead of dropping into the archive.
    A plain manual archive still uses the old flag-based mechanism below. */
@@ -2675,23 +2741,37 @@ function renderBoard(){
   const archiveWrap = document.getElementById('archivePanel');
   const tableWrap = document.getElementById('tablePanel');
   const calWrap = document.getElementById('calendarPanel');
+  const myTasksWrap = document.getElementById('myTasksPanel');
   if(!currentBoardId){ wrap.innerHTML = ''; archiveWrap.innerHTML = ''; return; }
   updateArchiveToggleBtn();
+  updateMyTasksToggleBtn();
   updateViewSwitchBtn();
 
   if(boardSubView === 'archive'){
     wrap.style.display = 'none';
     tableWrap.style.display = 'none';
     calWrap.style.display = 'none';
+    myTasksWrap.style.display = 'none';
     archiveWrap.style.display = '';
     document.getElementById('boardSearch').style.visibility = 'hidden';
     renderArchivePanel();
+    return;
+  }
+  if(boardSubView === 'mytasks'){
+    wrap.style.display = 'none';
+    tableWrap.style.display = 'none';
+    calWrap.style.display = 'none';
+    archiveWrap.style.display = 'none';
+    myTasksWrap.style.display = '';
+    document.getElementById('boardSearch').style.visibility = 'hidden';
+    renderMyTasksPanel();
     return;
   }
   if(boardSubView === 'table'){
     wrap.style.display = 'none';
     archiveWrap.style.display = 'none';
     calWrap.style.display = 'none';
+    myTasksWrap.style.display = 'none';
     tableWrap.style.display = '';
     document.getElementById('boardSearch').style.visibility = 'hidden';
     renderTablePanel();
@@ -2701,6 +2781,7 @@ function renderBoard(){
     wrap.style.display = 'none';
     archiveWrap.style.display = 'none';
     tableWrap.style.display = 'none';
+    myTasksWrap.style.display = 'none';
     calWrap.style.display = '';
     document.getElementById('boardSearch').style.visibility = 'hidden';
     renderCalendarPanel();
@@ -2710,6 +2791,7 @@ function renderBoard(){
   archiveWrap.style.display = 'none';
   tableWrap.style.display = 'none';
   calWrap.style.display = 'none';
+  myTasksWrap.style.display = 'none';
   document.getElementById('boardSearch').style.visibility = '';
 
   const collapsed = collapsedLists();
