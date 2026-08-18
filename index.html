@@ -1086,9 +1086,12 @@
   .ci-due-btn.due-over{background:#fdeae8; border-color:#f0c8c4; color:var(--red);}
   .ci-due-btn.due-soon{background:#fdf0d5; border-color:#ecd9a8; color:#8a6100;}
   .check-item.done .ci-due-btn{opacity:0.5;}
+  /* Not the click target itself — the visible button owns hover/click and
+     opens this via showPicker(), so there's no invisible-overlay hit-testing
+     to get misaligned. */
   .ci-due-native{
     position:absolute; inset:0; width:100%; height:100%;
-    opacity:0; border:0; padding:0; cursor:pointer;
+    opacity:0; border:0; padding:0; pointer-events:none;
   }
   .check-add{display:flex; gap:6px; margin-top:6px;}
   .check-add input[type=text]{flex:1; min-width:0;}
@@ -3522,11 +3525,10 @@ function renderCardModal(){
             onblur="renameCheckItem('${c.id}',${i},this.value)" onkeydown="if(event.key==='Enter') this.blur()">
           <div class="ci-actions">
             <span class="ci-due-wrap">
-              <button type="button" class="ci-due-btn${item.due?' has-date':''}${dueCls?' '+dueCls:''}" tabindex="-1" title="${item.due ? 'Due '+escAttr(fmtShortDate(item.due)) : 'Set a due date'}">
+              <button type="button" class="ci-due-btn${item.due?' has-date':''}${dueCls?' '+dueCls:''}" title="${item.due ? 'Due '+escAttr(fmtShortDate(item.due)) : 'Set a due date'}" onclick="ciOpenDatePicker(this)">
                 ${CI_CLOCK_SVG}${item.due ? `<span>${escHtml(fmtShortDate(item.due))}</span>` : ''}
               </button>
-              <input type="date" class="ci-due-native" value="${escAttr(item.due||'')}" title="Due date for this item"
-                onclick="this.showPicker && this.showPicker()"
+              <input type="date" class="ci-due-native" value="${escAttr(item.due||'')}" tabindex="-1"
                 onchange="setCheckItemDue('${c.id}',${i},this.value)">
             </span>
             <button type="button" class="ci-icon-btn" title="${assignee ? escAttr(assignee.name) : 'Assign someone'}" onclick="openCiAssigneePopover(event,'${c.id}',${i})">
@@ -4508,8 +4510,15 @@ function setCheckItemDue(cardId, i, due){
   const cl = (c.checklist||[]).map((item,idx)=> idx===i ? {...item, due: due || ''} : item);
   cardUpdate(cardId, {checklist: cl});
 }
-/* A checklist item can only be assigned to someone already on the card —
-   the picker below draws from c.memberIds rather than the whole roster. */
+/* The visible due-date pill is just a label — this is what actually opens
+   the native calendar, on the real (invisible, pointer-events:none) date
+   input right after it in the DOM. Calling showPicker() directly sidesteps
+   ever needing the invisible input's own hit-box to line up with the
+   button's, which is what made clicking it unreliable before. */
+function ciOpenDatePicker(btn){
+  const input = btn.nextElementSibling;
+  if(input && input.showPicker) input.showPicker();
+}
 function setCheckItemMember(cardId, i, memberId){
   const c = cardById(cardId);
   if(!c) return;
