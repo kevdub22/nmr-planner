@@ -2302,7 +2302,8 @@ function renderTablePanel(){
   const wrap = document.getElementById('tablePanel');
   if(!wrap) return;
   const me = myMemberId();
-  const active = cards.filter(c=>!c.archived && (!myJobsFilter || (c.memberIds||[]).includes(me))).slice().sort((a,b)=>{
+  const q = currentSearchQuery();
+  const active = cards.filter(c=>!c.archived && (!myJobsFilter || (c.memberIds||[]).includes(me)) && cardMatchesSearch(c, q)).slice().sort((a,b)=>{
     // Undated cards always sort to the end regardless of direction, so
     // flipping to descending surfaces the soonest-overdue first instead of
     // burying every real date under a pile of blanks.
@@ -2316,7 +2317,9 @@ function renderTablePanel(){
     return av < bv ? -tableSortDir : av > bv ? tableSortDir : 0;
   });
   if(!active.length){
-    wrap.innerHTML = `<div class="archive-empty">No cards on this board yet.</div>`;
+    wrap.innerHTML = q
+      ? `<div class="archive-empty">No cards match "${escHtml(q)}".</div>`
+      : `<div class="archive-empty">No cards on this board yet.</div>`;
     return;
   }
   const boardLbls = boardLabels();
@@ -2373,7 +2376,8 @@ function renderCalendarPanel(){
   const wrap = document.getElementById('calendarPanel');
   if(!wrap) return;
   const me = myMemberId();
-  const active = cards.filter(c=>!c.archived && (!myJobsFilter || (c.memberIds||[]).includes(me)));
+  const q = currentSearchQuery();
+  const active = cards.filter(c=>!c.archived && (!myJobsFilter || (c.memberIds||[]).includes(me)) && cardMatchesSearch(c, q));
   const byDay = {};
   active.forEach(c=>{
     const day = c.dueDate || c.startDate;
@@ -2715,10 +2719,15 @@ function parseMoneyValue(v){
 
 function renderArchivePanel(){
   const wrap = document.getElementById('archivePanel');
-  const archived = cards.filter(c=>c.archived)
+  const q = currentSearchQuery();
+  const allArchived = cards.filter(c=>c.archived);
+  const archived = allArchived
+    .filter(c=>cardMatchesSearch(c, q))
     .slice().sort((a,b)=> (b.archivedAt||'').localeCompare(a.archivedAt||''));
   if(!archived.length){
-    wrap.innerHTML = `<div class="archive-empty">No archived cards on this board yet.<br>Archive a card from its ☰ menu and it lands here.</div>`;
+    wrap.innerHTML = q
+      ? `<div class="archive-empty">No archived cards match "${escHtml(q)}".</div>`
+      : `<div class="archive-empty">No archived cards on this board yet.<br>Archive a card from its ☰ menu and it lands here.</div>`;
     return;
   }
   wrap.innerHTML = archived.map(c=>{
@@ -2749,14 +2758,17 @@ function renderArchivePanel(){
 function renderMyTasksPanel(){
   const wrap = document.getElementById('myTasksPanel');
   const me = myMemberId();
+  const q = currentSearchQuery();
   const rows = [];
-  cards.filter(c=>!c.archived).forEach(c=>{
+  cards.filter(c=>!c.archived && cardMatchesSearch(c, q)).forEach(c=>{
     (c.checklist||[]).forEach((item,idx)=>{
       if(item.memberId === me) rows.push({card:c, item, idx});
     });
   });
   if(!rows.length){
-    wrap.innerHTML = `<div class="archive-empty">No checklist items assigned to you on this board.<br>Assign yourself one from a card's checklist.</div>`;
+    wrap.innerHTML = q
+      ? `<div class="archive-empty">No assigned checklist items match "${escHtml(q)}".</div>`
+      : `<div class="archive-empty">No checklist items assigned to you on this board.<br>Assign yourself one from a card's checklist.</div>`;
     return;
   }
   rows.sort((a,b)=>{
@@ -2834,7 +2846,7 @@ function renderBoard(){
     calWrap.style.display = 'none';
     myTasksWrap.style.display = 'none';
     archiveWrap.style.display = '';
-    document.getElementById('boardSearch').style.visibility = 'hidden';
+    document.getElementById('boardSearch').style.visibility = '';
     renderArchivePanel();
     return;
   }
@@ -2844,7 +2856,7 @@ function renderBoard(){
     calWrap.style.display = 'none';
     archiveWrap.style.display = 'none';
     myTasksWrap.style.display = '';
-    document.getElementById('boardSearch').style.visibility = 'hidden';
+    document.getElementById('boardSearch').style.visibility = '';
     renderMyTasksPanel();
     return;
   }
@@ -2854,7 +2866,7 @@ function renderBoard(){
     calWrap.style.display = 'none';
     myTasksWrap.style.display = 'none';
     tableWrap.style.display = '';
-    document.getElementById('boardSearch').style.visibility = 'hidden';
+    document.getElementById('boardSearch').style.visibility = '';
     renderTablePanel();
     return;
   }
@@ -2864,7 +2876,7 @@ function renderBoard(){
     tableWrap.style.display = 'none';
     myTasksWrap.style.display = 'none';
     calWrap.style.display = '';
-    document.getElementById('boardSearch').style.visibility = 'hidden';
+    document.getElementById('boardSearch').style.visibility = '';
     renderCalendarPanel();
     return;
   }
@@ -3107,33 +3119,45 @@ function toggleCollapse(listId){
 }
 
 /* ---------------- Search ---------------- */
+/* Shared by lanes (applySearch), Calendar, and Archive — same haystack used
+   everywhere so a query means the same thing regardless of which view is
+   open, mirroring how myJobsFilter is read directly by each view. */
+function cardMatchesSearch(c, q){
+  if(!q) return true;
+  const labelNames = boardLabels().filter(l=>(c.labelIds||[]).includes(l.id)).map(l=>l.name||'').join(' ');
+  const memberNames = (c.memberIds||[]).map(id=>{ const m = memberById(id); return m ? m.name + ' ' + m.initials : ''; }).join(' ');
+  const cfVals = c.fields || {};
+  const fieldText = boardCustomFields().map(f=>{
+    const v = cfVals[f.id];
+    if(v == null || v === '' || v === false) return '';
+    if(f.type === 'dropdown'){
+      const opt = (f.options||[]).find(o=>o.id === v);
+      return opt ? f.name + ' ' + opt.label : '';
+    }
+    if(f.type === 'checkbox') return f.name;
+    return f.name + ' ' + v;
+  }).join(' ');
+  const checklistText = (c.checklist||[]).map(i=>i.text).join(' ');
+  const hay = [c.title, descToText(c.desc), labelNames, memberNames, fieldText, checklistText].join(' ').toLowerCase();
+  return hay.includes(q);
+}
+function currentSearchQuery(){
+  return (document.getElementById('boardSearch')?.value || '').trim().toLowerCase();
+}
 function applySearch(){
-  const q = (document.getElementById('boardSearch')?.value || '').trim().toLowerCase();
+  const q = currentSearchQuery();
   const me = myMemberId();
   document.querySelectorAll('.pcard').forEach(el=>{
     const c = cardById(el.dataset.cardId);
     if(!c){ return; }
     let visible = !myJobsFilter || (c.memberIds||[]).includes(me);
-    if(visible && q){
-      const labelNames = boardLabels().filter(l=>(c.labelIds||[]).includes(l.id)).map(l=>l.name||'').join(' ');
-      const memberNames = (c.memberIds||[]).map(id=>{ const m = memberById(id); return m ? m.name + ' ' + m.initials : ''; }).join(' ');
-      const cfVals = c.fields || {};
-      const fieldText = boardCustomFields().map(f=>{
-        const v = cfVals[f.id];
-        if(v == null || v === '' || v === false) return '';
-        if(f.type === 'dropdown'){
-          const opt = (f.options||[]).find(o=>o.id === v);
-          return opt ? f.name + ' ' + opt.label : '';
-        }
-        if(f.type === 'checkbox') return f.name;
-        return f.name + ' ' + v;
-      }).join(' ');
-      const checklistText = (c.checklist||[]).map(i=>i.text).join(' ');
-      const hay = [c.title, descToText(c.desc), labelNames, memberNames, fieldText, checklistText].join(' ').toLowerCase();
-      visible = hay.includes(q);
-    }
+    if(visible) visible = cardMatchesSearch(c, q);
     el.classList.toggle('search-hidden', !visible);
   });
+  if(boardSubView === 'calendar') renderCalendarPanel();
+  else if(boardSubView === 'archive') renderArchivePanel();
+  else if(boardSubView === 'table') renderTablePanel();
+  else if(boardSubView === 'mytasks') renderMyTasksPanel();
 }
 
 /* ---------------- Lists ---------------- */
