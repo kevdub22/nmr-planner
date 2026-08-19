@@ -1697,6 +1697,12 @@ function openBoard(id){
   lists = []; cards = [];
   boardSubView = 'lanes';
   location.hash = 'b/' + id;
+  // Switching boards while one is already open otherwise leaves the
+  // outgoing board's lanes on screen — lists/cards are cleared above, but
+  // nothing repaints the DOM until the new board's listeners resolve, so
+  // the old content just sits there until then. Render now so the switch
+  // reads as instant instead of a stale flash.
+  scheduleBoardRender();
 
   unsubLists = listsRef(id).onSnapshot(snap=>{
     lists = snap.docs.map(d=>({id:d.id, ...d.data()}));
