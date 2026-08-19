@@ -308,8 +308,10 @@
     background:var(--white);
     border:1px solid var(--gray-border);
     border-radius:var(--radius);
-    padding:16px 18px;
+    padding:16px 18px 16px 22px;
     cursor:pointer;
+    position:relative;
+    overflow:hidden;
     display:flex;
     flex-direction:column;
     gap:8px;
@@ -319,16 +321,23 @@
   .board-tile:hover{border-color:var(--teal);}
   .board-tile.dragging{opacity:0.45;}
   .board-tile.drag-over{border-color:var(--teal); box-shadow:inset 3px 0 0 0 var(--teal);}
-  .bt-top{display:flex; align-items:flex-start; gap:8px;}
-  .bt-drag{
-    margin-left:auto; cursor:grab; color:#b6bfcc;
-    font-size:14px; line-height:1; user-select:none; flex-shrink:0;
+  /* The color bar doubles as the drag handle — grabbing it or the tile's
+     left edge picks the board up for reordering. */
+  .bt-bar{
+    position:absolute; left:0; top:0; bottom:0; width:7px;
+    background:var(--teal); cursor:grab;
   }
-  .bt-drag:hover{color:var(--navy);}
-  .bt-drag:active{cursor:grabbing;}
+  .bt-bar:active{cursor:grabbing;}
+  .bt-top{display:flex; align-items:flex-start; gap:8px;}
+  .bt-menu-btn{
+    margin-left:auto; flex-shrink:0;
+    background:none; border:none; cursor:pointer;
+    color:#b6bfcc; font-size:15px; line-height:1;
+    padding:3px 6px; border-radius:6px;
+  }
+  .bt-menu-btn:hover{color:var(--navy); background:var(--gray-bg);}
   .board-tile .bt-name{font-weight:700; color:var(--navy); font-size:15px; font-family:'Instrument Sans', var(--font); min-width:0;}
   .board-tile .bt-meta{font-size:12px; color:var(--gray-text);}
-  .board-tile .bt-actions{margin-top:auto; display:flex; gap:6px;}
   .board-tile.new-tile{
     border-style:dashed; align-items:center; justify-content:center;
     color:var(--gray-text); font-weight:700; font-size:13.5px;
@@ -1147,6 +1156,11 @@
   .roster-row input{flex:1;}
   .roster-add{display:flex; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid var(--gray-bg);}
   .roster-add input{flex:1;}
+  .roster-role-badge{
+    font-size:11px; font-weight:700; color:var(--gray-text);
+    text-transform:uppercase; letter-spacing:0.3px; flex-shrink:0;
+  }
+  .roster-row select.role-select{width:auto; flex-shrink:0; max-width:110px; font-size:12.5px; padding:5px 8px;}
 
   /* Sign-in gate — covers the app until a staff account is confirmed, so no
      board data is ever painted for a signed-out visitor. */
@@ -1541,6 +1555,12 @@ function isStaffUser(user){
   return !!user && (user.email || '').toLowerCase().endsWith('@' + ALLOWED_DOMAIN);
 }
 
+/* The one account allowed to promote itself to admin with nobody else
+   already holding that role — otherwise nobody could ever become the first
+   admin, since every other path to the role requires an existing admin to
+   grant it. Mirrored in firestore.rules; keep the two in sync. */
+const BOOTSTRAP_ADMIN_EMAIL = 'kwright@nmrevents.com';
+
 /* ---------------- State ---------------- */
 let boards = [];
 let members = [];
@@ -1730,6 +1750,11 @@ function boardById(id){ return boards.find(b=>b.id === id); }
 function cardById(id){ return cards.find(c=>c.id === id); }
 function listById(id){ return lists.find(l=>l.id === id); }
 function memberById(id){ return members.find(m=>m.id === id); }
+function myMember(){ return memberById(myMemberId()); }
+/* Missing role = 'member' — every account created before roles existed has
+   no role field at all, and treating that as a plain member (rather than
+   backfilling every doc) is the least surprising default. */
+function isAdmin(){ return (myMember()?.role || 'member') === 'admin'; }
 
 function touchBoard(){
   if(!currentBoardId) return;
@@ -1772,17 +1797,14 @@ function renderBoardTiles(){
     <div class="board-tile" data-board-id="${b.id}" onclick="openBoard('${b.id}')"
          ondragover="boardDragOver(event,'${b.id}')" ondragleave="boardDragLeave(event)"
          ondrop="boardDrop(event,'${b.id}')" ondragend="boardDragEnd(event)">
+      <span class="bt-bar" style="background:${escAttr(b.color||'var(--teal)')}" title="Drag to reorder" draggable="true"
+        onclick="event.stopPropagation()"
+        ondragstart="boardDragStart(event,'${b.id}')"></span>
       <div class="bt-top">
         <div class="bt-name">${escHtml(b.name||'Untitled Board')}</div>
-        <span class="bt-drag" title="Drag to reorder" draggable="true"
-          onclick="event.stopPropagation()"
-          ondragstart="boardDragStart(event,'${b.id}')">&#9776;</span>
+        <button class="bt-menu-btn" title="Board actions" onclick="event.stopPropagation(); openBoardActionsMenu(event,'${b.id}')">&#8942;</button>
       </div>
       <div class="bt-meta">Updated ${fmtWhen(b.updatedAt||b.createdAt)}</div>
-      <div class="bt-actions">
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); promptRenameBoard('${b.id}')">Rename</button>
-        <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteBoard('${b.id}')">Delete</button>
-      </div>
     </div>
   `).join('');
   wrap.innerHTML = tiles + `
@@ -1791,6 +1813,47 @@ function renderBoardTiles(){
     wrap.innerHTML = `<div class="card" style="grid-column:1/-1;"><div class="empty-state"><div class="big">No boards yet</div>Create your first board to start planning projects with the team.</div></div>`
       + `<div class="board-tile new-tile" onclick="promptNewBoard()">＋ New Board</div>`;
   }
+}
+
+/* Board Actions menu — the "⋯" on each tile, same append-to-body /
+   position-near-anchor / close-on-outside-click convention as
+   .mini-popover elsewhere (List Actions, Members, Dates). */
+let boardActionsEl = null;
+let boardActionsBoardId = null;
+function closeBoardActionsMenu(){
+  if(boardActionsEl){ boardActionsEl.remove(); boardActionsEl = null; boardActionsBoardId = null; }
+}
+function renderBoardActionsMenu(){
+  if(!boardActionsEl || !boardActionsBoardId) return;
+  const b = boardById(boardActionsBoardId);
+  if(!b) return;
+  boardActionsEl.innerHTML = `
+    <div class="mp-head">Board Actions<button class="cm-icon-btn" onclick="closeBoardActionsMenu()">✕</button></div>
+    <button type="button" class="cm-menu-item" onclick="closeBoardActionsMenu(); promptRenameBoard('${b.id}')">✎ Rename Board</button>
+    <div class="mp-label">Board Color</div>
+    <div class="la-color-grid">
+      ${LIST_COLORS.map(col=>`<button class="color-swatch${(b.color||LIST_COLORS[0])===col?' on':''}" style="background:${col}" title="${col}" onclick="setBoardColor('${b.id}','${col}')"></button>`).join('')}
+    </div>
+    <div class="cm-menu-sep"></div>
+    <button type="button" class="cm-menu-item danger" onclick="closeBoardActionsMenu(); deleteBoard('${b.id}')">🗑 Delete Board</button>
+  `;
+}
+function openBoardActionsMenu(evt, boardId){
+  evt.stopPropagation();
+  closeBoardActionsMenu();
+  const b = boardById(boardId);
+  if(!b) return;
+  boardActionsBoardId = boardId;
+  const pop = document.createElement('div');
+  pop.className = 'mini-popover';
+  boardActionsEl = pop;
+  renderBoardActionsMenu();
+  positionPopover(pop, evt.currentTarget);
+}
+function setBoardColor(boardId, color){
+  boardsRef().doc(boardId).update({color, updatedAt:new Date().toISOString()})
+    .catch(e=>{ console.error(e); showToast("Couldn't save board color"); });
+  renderBoardActionsMenu();
 }
 
 /* Prompt modal (create/rename) */
@@ -3308,6 +3371,7 @@ document.addEventListener('click', e=>{
   if(membersPopoverEl && !clickWasInside(e, membersPopoverEl)) closeMembersPopover();
   if(datesPopoverEl && !clickWasInside(e, datesPopoverEl)) closeDatesPopover();
   if(listActionsEl && !clickWasInside(e, listActionsEl)) closeListActionsMenu();
+  if(boardActionsEl && !clickWasInside(e, boardActionsEl)) closeBoardActionsMenu();
   if(viewSwitchEl && !clickWasInside(e, viewSwitchEl)) closeViewSwitcher();
   if(ciAssigneePopoverEl && !clickWasInside(e, ciAssigneePopoverEl)) closeCiAssigneePopover();
   if(ciMenuEl && !clickWasInside(e, ciMenuEl)) closeCiMenu();
@@ -3334,6 +3398,7 @@ document.addEventListener('keydown', e=>{
     else if(membersPopoverEl) closeMembersPopover();
     else if(datesPopoverEl) closeDatesPopover();
     else if(listActionsEl) closeListActionsMenu();
+    else if(boardActionsEl) closeBoardActionsMenu();
     else if(viewSwitchEl) closeViewSwitcher();
     else if(ciAssigneePopoverEl) closeCiAssigneePopover();
     else if(ciMenuEl) closeCiMenu();
@@ -4787,9 +4852,21 @@ function renderRoster(){
     wrap.innerHTML = `<div class="empty-state" style="padding:24px;"><div class="big">Nobody yet</div>Teammates appear here automatically the first time they sign in — or add one below to assign cards to them early.</div>`;
   } else {
     const me = myMemberId();
+    const admin = isAdmin();
+    const adminCount = members.filter(m=>m.role === 'admin').length;
     wrap.innerHTML = members.map(m=>{
       const isMe = m.id === me;
-      const editable = isMe || m.isPlaceholder;
+      const editable = isMe || m.isPlaceholder || admin;
+      const role = m.role || 'member';
+      // A real account only, and only while another admin still exists —
+      // otherwise a slip here locks the whole workspace out of Settings.
+      const roleEditable = admin && !m.isPlaceholder && (role !== 'admin' || adminCount > 1);
+      const roleControl = m.isPlaceholder ? '' : (roleEditable
+        ? `<select class="role-select" onchange="setMemberRole('${m.id}', this.value)">
+            <option value="member"${role==='member'?' selected':''}>Member</option>
+            <option value="admin"${role==='admin'?' selected':''}>Admin</option>
+          </select>`
+        : `<span class="roster-role-badge">${role==='admin'?'Admin':'Member'}</span>`);
       return `
       <div class="roster-row">
         <span class="avatar lg" style="background:${escAttr(m.color)}; margin-left:0;">${escAttr(m.initials)}</span>
@@ -4802,6 +4879,7 @@ function renderRoster(){
             ${m.isPlaceholder ? 'Not signed in yet' : escHtml(m.email||'')}${isMe ? ' · you' : ''}
           </div>
         </div>
+        ${roleControl}
         ${isMe ? '' : `<button class="row-remove" title="Remove member" onclick="removeMember('${m.id}')">✕</button>`}
       </div>`;
     }).join('');
@@ -4812,9 +4890,9 @@ function renderRoster(){
       onkeydown="if(event.key==='Enter') addMember()">
     <button class="btn btn-primary btn-sm" onclick="addMember()">Add</button>`;
 }
-/* A real profile is only editable by the account it belongs to — the rules
-   reject writing to anyone else's — but a placeholder (added by hand, no
-   login yet) is team-owned, so any staff member can fix a typo in it. */
+/* A real profile is only editable by the account it belongs to, or by an
+   admin — the rules reject anyone else's write. A placeholder (added by
+   hand, no login yet) is team-owned, so any staff member can fix a typo. */
 function renameMember(id, name){
   name = (name||'').trim();
   const m = memberById(id);
@@ -4822,6 +4900,18 @@ function renameMember(id, name){
   if(!name || name === m.name){ renderRoster(); return; }
   db.collection('members').doc(id).update({name, initials: initialsOf(name)}).catch(e=>{
     console.error(e); showToast("Couldn't save name");
+  });
+}
+/* Admin-only — firestore.rules enforces this same restriction server-side,
+   so this is a UI convenience, not the actual security boundary. */
+function setMemberRole(id, role){
+  if(!isAdmin()) return;
+  const m = memberById(id);
+  if(!m) return;
+  db.collection('members').doc(id).update({role}).then(()=>{
+    showToast(`${m.name} is now ${role === 'admin' ? 'an Admin' : 'a Member'}`);
+  }).catch(e=>{
+    console.error(e); showToast("Couldn't change role"); renderRoster();
   });
 }
 /* Placeholders exist so a card can be assigned to someone before they have an
@@ -5019,6 +5109,7 @@ async function upsertMyMember(user){
   const ref = db.collection('members').doc(user.uid);
   const snap = await ref.get();
   const payload = {email: user.email || ''};
+  const email = (user.email || '').toLowerCase();
   if(!snap.exists){
     // Console-created accounts have no display name, so the first guess comes
     // from the address ("kevin.wright@…" → "Kevin Wright"). Only set on
@@ -5028,6 +5119,12 @@ async function upsertMyMember(user){
     payload.initials = initialsOf(name);
     // Color is derived from the uid so an avatar keeps its hue for good.
     payload.color = MEMBER_COLORS[Math.abs(hashCode(user.uid)) % MEMBER_COLORS.length];
+    payload.role = email === BOOTSTRAP_ADMIN_EMAIL ? 'admin' : 'member';
+  } else if(!snap.data().role && email === BOOTSTRAP_ADMIN_EMAIL){
+    // One-time promotion for the account that first set roles up — a doc
+    // created before roles existed has no role field to have carried this
+    // already, and only ever fires for this one address.
+    payload.role = 'admin';
   }
   await ref.set(payload, {merge:true});
 }

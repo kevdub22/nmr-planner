@@ -38,6 +38,23 @@ service cloud.firestore {
         && request.auth.token.email.lower().matches('^[^@]+@nmrevents[.]com$');
     }
 
+    // Role lives on the requester's own member doc, so granting/revoking
+    // admin is just editing that one field — no custom claims or a Cloud
+    // Function to keep in sync. The extra read this costs is only paid on
+    // writes gated by isAdmin(), not on every request.
+    function isAdmin() {
+      return isStaff()
+        && get(/databases/$(database)/documents/members/$(request.auth.uid)).data.get('role', null) == 'admin';
+    }
+
+    // The one account allowed to grant itself admin while no admin yet
+    // exists — every other path to the role requires an existing admin to
+    // grant it, so without this nobody could ever become the first one.
+    // Mirrored in index.html's BOOTSTRAP_ADMIN_EMAIL; keep the two in sync.
+    function isBootstrapAdmin() {
+      return request.auth.token.email.lower() == 'kwright@nmrevents.com';
+    }
+
     /* ---- Estimate Builder ---- */
     match /estimates/{estimateId} { allow read, write: if isStaff(); }
     match /library/{itemId}       { allow read, write: if isStaff(); }
@@ -55,16 +72,39 @@ service cloud.firestore {
     // A member doc is either a real profile — keyed by its own uid, created
     // automatically the first time that person signs in — or a placeholder,
     // added by hand from Team Members before someone has an account yet so
-    // cards can be assigned to them early. Only the account itself may create
-    // or edit its own real profile, so nobody can rename a colleague; a
-    // placeholder (flagged isPlaceholder:true) isn't anyone's identity to
-    // protect, so any staff member may create, edit, or remove one.
+    // cards can be assigned to them early. A real profile is editable by the
+    // account it belongs to or by an admin (so an admin can fix a colleague's
+    // display name, not just their own); a placeholder (flagged
+    // isPlaceholder:true) isn't anyone's identity to protect, so any staff
+    // member may create, edit, or remove one — except its role, which stays
+    // admin-only (and blocked outright on a placeholder, see below) so
+    // nobody can plant one on a doc id that later turns out to match a real
+    // account's uid.
+    //
+    // The "role" field is stricter than the rest of the doc: a non-admin may
+    // never touch their own (even though they can otherwise edit their own
+    // doc), and the bootstrap address may set its own to 'admin' exactly
+    // once, before any admin exists to grant it normally.
     match /members/{memberId} {
       allow read, delete: if isStaff();
       allow create: if isStaff()
-        && (request.auth.uid == memberId || request.resource.data.isPlaceholder == true);
+        && (
+          (request.auth.uid == memberId
+            && (request.resource.data.get('role', null) != 'admin' || isBootstrapAdmin()))
+          || (request.resource.data.isPlaceholder == true
+              && request.resource.data.get('role', null) == null)
+        );
       allow update: if isStaff()
-        && (request.auth.uid == memberId || resource.data.isPlaceholder == true);
+        && (
+          (resource.data.isPlaceholder == true
+            && request.resource.data.get('role', null) == null)
+          || isAdmin()
+          || (request.auth.uid == memberId
+              && request.resource.data.get('role', null) == resource.data.get('role', null))
+          || (request.auth.uid == memberId
+              && request.resource.data.get('role', null) == 'admin'
+              && isBootstrapAdmin())
+        );
     }
 
     /* ---- Meeting Notes ---- */
