@@ -332,7 +332,7 @@
   .bt-menu-btn{
     margin-left:auto; flex-shrink:0;
     background:none; border:none; cursor:pointer;
-    color:#b6bfcc; font-size:15px; line-height:1;
+    color:#8a93a0; font-size:16px; line-height:1;
     padding:3px 6px; border-radius:6px;
   }
   .bt-menu-btn:hover{color:var(--navy); background:var(--gray-bg);}
@@ -1802,7 +1802,7 @@ function renderBoardTiles(){
         ondragstart="boardDragStart(event,'${b.id}')"></span>
       <div class="bt-top">
         <div class="bt-name">${escHtml(b.name||'Untitled Board')}</div>
-        <button class="bt-menu-btn" title="Board actions" onclick="event.stopPropagation(); openBoardActionsMenu(event,'${b.id}')">&#8942;</button>
+        <button class="bt-menu-btn" title="Board actions" onclick="event.stopPropagation(); openBoardActionsMenu(event,'${b.id}')">⋯</button>
       </div>
       <div class="bt-meta">Updated ${fmtWhen(b.updatedAt||b.createdAt)}</div>
     </div>
