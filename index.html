@@ -1542,6 +1542,15 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+// Without this, switching back to a board you already had open still waits
+// on a fresh round trip to Firestore every time — nothing is cached past the
+// life of that board's listener. IndexedDB persistence lets a revisited
+// board's onSnapshot fire instantly from the local cache while the real
+// server round trip happens in the background. synchronizeTabs avoids the
+// 'failed-precondition' error when someone has the app open in two tabs.
+db.enablePersistence({synchronizeTabs: true}).catch(err=>{
+  if(err.code !== 'failed-precondition' && err.code !== 'unimplemented') console.error(err);
+});
 const auth = firebase.auth();
 
 /* Only accounts on this domain may read or write. The same check is enforced
