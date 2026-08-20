@@ -486,9 +486,9 @@
   /* Coloured lanes tint their header, so the first card needs a little more
      breathing room beneath that block of colour. */
   .lane.has-color .lane-cards{padding-top:10px;}
-  .lane-footer{padding:6px 8px 10px 8px;}
+  .lane-footer{padding:6px 8px 10px 8px; display:flex; align-items:center; gap:2px;}
   .add-card-btn{
-    width:100%; text-align:left;
+    flex:1; text-align:left;
     background:none; border:none; cursor:pointer;
     color:var(--gray-text); font-size:12.5px; font-weight:600;
     padding:7px 8px; border-radius:6px; font-family:var(--font);
@@ -2981,6 +2981,7 @@ function renderBoard(){
       </div>
       <div class="lane-footer" id="laneFooter-${l.id}">
         <button class="add-card-btn" onclick="showAddCard('${l.id}')">＋ Add a card</button>
+        <button class="lane-btn" title="Create from template" onclick="openTemplatePicker(event,'${l.id}')">⧉</button>
       </div>
     </div>`;
   }).join('');
@@ -3516,6 +3517,7 @@ document.addEventListener('click', e=>{
   if(viewSwitchEl && !clickWasInside(e, viewSwitchEl)) closeViewSwitcher();
   if(ciAssigneePopoverEl && !clickWasInside(e, ciAssigneePopoverEl)) closeCiAssigneePopover();
   if(ciMenuEl && !clickWasInside(e, ciMenuEl)) closeCiMenu();
+  if(templatePickerEl && !clickWasInside(e, templatePickerEl)) closeTemplatePicker();
 });
 
 // #cardModal itself is never replaced (only its innerHTML, on every render),
@@ -3543,6 +3545,7 @@ document.addEventListener('keydown', e=>{
     else if(viewSwitchEl) closeViewSwitcher();
     else if(ciAssigneePopoverEl) closeCiAssigneePopover();
     else if(ciMenuEl) closeCiMenu();
+    else if(templatePickerEl) closeTemplatePicker();
     else if(menu && !menu.hidden) closeCardMenu();
     else if(openCardId) closeCardModal();
   }
@@ -3623,6 +3626,7 @@ function renderCardModal(){
             <button class="cm-menu-item" onclick="duplicateCard('${c.id}')">⧉ Duplicate Card</button>
             <button class="cm-menu-item" onclick="openMoveCopyBoardChooser('${c.id}','move')">➡ Move to Board</button>
             <button class="cm-menu-item" onclick="openMoveCopyBoardChooser('${c.id}','copy')">⎘ Copy to Board</button>
+            <button class="cm-menu-item" onclick="makeTemplateFromCard('${c.id}')">⊞ Make Template</button>
             <div class="cm-menu-sep"></div>
             ${c.archived ? `
               <button class="cm-menu-item" onclick="restoreCard('${c.id}')">↩ Restore to Board</button>
@@ -4860,6 +4864,100 @@ async function duplicateCard(id){
   }catch(e){
     console.error(e); showToast("Couldn't duplicate card");
   }
+}
+
+/* ---------------- Card templates ----------------
+   Templates live on the board doc as a plain array (same convention as
+   labels/customFields) rather than as flagged cards — that way they never
+   need filtering out of every other view that already scans `cards` (table,
+   calendar, search, my tasks, archive...). Dates, assignees, comments and
+   attachments are instance-specific, so a template only ever captures the
+   reusable parts: title, description, labels, a blank checklist, and custom
+   field values. */
+function boardTemplates(){
+  const b = boardById(currentBoardId);
+  return (b && Array.isArray(b.templates)) ? b.templates : [];
+}
+async function makeTemplateFromCard(cardId){
+  closeCardMenu();
+  const c = cardById(cardId);
+  if(!c) return;
+  const template = {
+    id: uid(),
+    title: c.title || 'Untitled',
+    desc: c.desc || '',
+    labelIds: [...(c.labelIds||[])],
+    checklist: (c.checklist||[]).map(item=>({id: uid(), text: item.text, done:false, due:'', memberId:''})),
+    fields: {...(c.fields||{})},
+    createdAt: new Date().toISOString()
+  };
+  try{
+    await boardsRef().doc(currentBoardId).update({
+      templates: firebase.firestore.FieldValue.arrayUnion(template)
+    });
+    showToast('Template created');
+  }catch(e){
+    console.error(e); showToast("Couldn't create template");
+  }
+}
+
+let templatePickerEl = null;
+let templatePickerListId = null;
+function closeTemplatePicker(){
+  if(templatePickerEl){ templatePickerEl.remove(); templatePickerEl = null; templatePickerListId = null; }
+}
+function renderTemplatePicker(){
+  if(!templatePickerEl) return;
+  const templates = boardTemplates();
+  templatePickerEl.innerHTML = `
+    <div class="mp-head">Card templates<button class="cm-icon-btn" onclick="closeTemplatePicker()">✕</button></div>
+    ${templates.length ? templates.map(t=>`
+      <div class="mp-row" onclick="createCardFromTemplate('${t.id}')">
+        <span class="mp-name">${escHtml(t.title||'Untitled')}${(t.checklist||[]).length ? ` <span style="color:var(--gray-text); font-weight:400;">· ${t.checklist.length} items</span>` : ''}</span>
+        <button class="mp-remove" title="Delete template" onclick="event.stopPropagation(); closeTemplatePicker(); deleteTemplate('${t.id}')">✕</button>
+      </div>`).join('') : `<div class="mp-empty">No templates yet. Open a card's ⋯ menu and choose "Make Template".</div>`}
+  `;
+}
+function openTemplatePicker(evt, listId){
+  evt.stopPropagation();
+  closeTemplatePicker();
+  templatePickerListId = listId;
+  const pop = document.createElement('div');
+  pop.className = 'mini-popover';
+  templatePickerEl = pop;
+  renderTemplatePicker();
+  positionPopover(pop, evt.currentTarget);
+}
+async function createCardFromTemplate(templateId){
+  const listId = templatePickerListId;
+  closeTemplatePicker();
+  const t = boardTemplates().find(x=>x.id === templateId);
+  if(!t || !listId) return;
+  const id = uid();
+  try{
+    await cardsRef(currentBoardId).doc(id).set({
+      listId, title: t.title || 'Untitled',
+      pos: maxPos(cardsInList(listId)) + 1000,
+      desc: t.desc || '', labelIds: [...(t.labelIds||[])], memberIds: [],
+      startDate:'', dueDate:'',
+      checklist: (t.checklist||[]).map(item=>({...item, id: uid()})),
+      attachments: [], comments: [],
+      fields: {...(t.fields||{})},
+      createdAt: new Date().toISOString()
+    });
+    touchBoard();
+    showToast('Card created from template');
+  }catch(e){
+    console.error(e); showToast("Couldn't create card");
+  }
+}
+function deleteTemplate(templateId){
+  const t = boardTemplates().find(x=>x.id === templateId);
+  if(!t) return;
+  if(!confirm(`Delete template "${t.title||'Untitled'}"?`)) return;
+  boardsRef().doc(currentBoardId).update({
+    templates: boardTemplates().filter(x=>x.id !== templateId)
+  }).catch(e=>{ console.error(e); showToast("Couldn't delete template"); });
 }
 
 /* ---------------- Move / Copy card to another board ----------------
