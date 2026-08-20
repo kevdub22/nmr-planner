@@ -328,7 +328,7 @@
     background:var(--teal); cursor:grab;
   }
   .bt-bar:active{cursor:grabbing;}
-  .bt-top{display:flex; align-items:flex-start; gap:8px;}
+  .bt-top{display:flex; align-items:center; gap:8px; margin-top:8px;}
   .bt-menu-btn{
     margin-left:auto; flex-shrink:0;
     background:none; border:none; cursor:pointer;
@@ -336,7 +336,38 @@
     padding:3px 6px; border-radius:6px;
   }
   .bt-menu-btn:hover{color:var(--navy); background:var(--gray-bg);}
-  .board-tile .bt-name{font-weight:700; color:var(--navy); font-size:15px; font-family:'Instrument Sans', var(--font); min-width:0;}
+
+  /* Board activity panel — slides in from the right, listing every card's
+     comments on the currently open board, sorted by date. */
+  .activity-panel-backdrop{
+    position:fixed; inset:0; background:rgba(12,20,35,0.45);
+    z-index:1000; opacity:0; pointer-events:none; transition:opacity .2s ease;
+  }
+  .activity-panel-backdrop.open{opacity:1; pointer-events:auto;}
+  .activity-panel{
+    position:fixed; top:0; right:0; height:100%;
+    width:min(440px, 92vw); background:var(--white);
+    box-shadow:-8px 0 28px rgba(0,0,0,0.28);
+    transform:translateX(100%); transition:transform .28s ease;
+    display:flex; flex-direction:column; z-index:1001;
+  }
+  .activity-panel-backdrop.open .activity-panel{transform:translateX(0);}
+  .ap-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 18px; border-bottom:1px solid var(--gray-border); flex-shrink:0;
+  }
+  .ap-head h3{margin:0; font-size:15px;}
+  .ap-body{flex:1; overflow-y:auto; padding:6px 18px 18px;}
+  .ap-date-heading{
+    font-size:11px; font-weight:700; color:var(--gray-text);
+    text-transform:uppercase; letter-spacing:0.4px;
+    margin:16px 0 4px; padding-top:8px; border-top:1px solid var(--gray-bg);
+  }
+  .ap-date-heading:first-child{margin-top:8px; padding-top:0; border-top:none;}
+  .ap-comment{cursor:pointer; border-radius:8px; margin:0 -8px; padding:8px;}
+  .ap-comment:hover{background:var(--gray-bg);}
+  .ap-card-title{font-size:12.5px; font-weight:700; color:var(--navy); margin-bottom:2px;}
+  .board-tile .bt-name{font-weight:700; color:var(--navy); font-size:19px; font-family:'Instrument Sans', var(--font); min-width:0;}
   .board-tile .bt-meta{font-size:12px; color:var(--gray-text);}
   .board-tile.new-tile{
     border-style:dashed; align-items:center; justify-content:center;
@@ -1379,6 +1410,12 @@
           <button class="btn btn-ghost btn-sm" id="myTasksBtn" onclick="toggleMyTasksView()" title="Show checklist items assigned to you">📋 My Tasks</button>
           <button class="btn btn-ghost btn-sm" onclick="switchView('members')">⚙ Settings</button>
           <button class="btn btn-ghost btn-sm" onclick="goHome()">All Boards</button>
+          <button class="view-switch-btn" onclick="openActivityPanel()" title="Activity">
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M4 3v4h4M4.05 11a7 7 0 1 0 1.15-5.66L4 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M10 6.5V10l2.5 1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
         </div>
       </div>
       <div class="lanes" id="lanes"></div>
@@ -1411,6 +1448,17 @@
 <!-- CARD MODAL -->
 <div class="modal-backdrop" id="cardModalBackdrop">
   <div class="modal modal-card" role="dialog" aria-modal="true" id="cardModal"></div>
+</div>
+
+<!-- BOARD ACTIVITY PANEL -->
+<div class="activity-panel-backdrop" id="activityPanelBackdrop">
+  <aside class="activity-panel" role="dialog" aria-modal="true" aria-labelledby="activityPanelTitle">
+    <div class="ap-head">
+      <h3 id="activityPanelTitle">Activity</h3>
+      <button class="lb-close" style="position:static;" onclick="closeActivityPanel()" aria-label="Close">✕</button>
+    </div>
+    <div class="ap-body" id="activityPanelBody"></div>
+  </aside>
 </div>
 
 <!-- GENERIC PROMPT MODAL -->
@@ -3374,6 +3422,60 @@ function closeCardModal(){
   unlockBodyScroll('card');
 }
 closeOnBackdrop('cardModalBackdrop', closeCardModal);
+
+/* ---------------- Board activity panel ----------------
+   Only ever shows the currently open board, so it reads straight from the
+   live `cards` array (already kept in sync via the onSnapshot listener in
+   openBoard) and flattens every card's embedded comments into one feed
+   sorted newest-first. */
+function openActivityPanel(){
+  const b = boardById(currentBoardId);
+  document.getElementById('activityPanelTitle').textContent = b ? `Activity · ${b.name||'Untitled Board'}` : 'Activity';
+  document.getElementById('activityPanelBackdrop').classList.add('open');
+  lockBodyScroll('activity');
+  renderActivityPanel();
+}
+function closeActivityPanel(){
+  document.getElementById('activityPanelBackdrop').classList.remove('open');
+  unlockBodyScroll('activity');
+}
+function renderActivityPanel(){
+  const body = document.getElementById('activityPanelBody');
+  const entries = [];
+  cards.forEach(c=>(c.comments||[]).forEach(cm=>entries.push({card:c, comment:cm})));
+  entries.sort((a,b)=>(b.comment.at||0) - (a.comment.at||0));
+  if(!entries.length){
+    body.innerHTML = `<div class="cm-empty-comments">No comments yet on this board.</div>`;
+    return;
+  }
+  let lastDateKey = null;
+  body.innerHTML = entries.map(({card, comment})=>{
+    const d = comment.at ? new Date(comment.at) : null;
+    const dateKey = d ? d.toDateString() : '';
+    let heading = '';
+    if(dateKey !== lastDateKey){
+      heading = `<div class="ap-date-heading">${d ? escHtml(d.toLocaleDateString('en-US',{weekday:'long', month:'short', day:'numeric', year:'numeric'})) : 'Unknown date'}</div>`;
+      lastDateKey = dateKey;
+    }
+    const m = memberById(comment.authorId);
+    const when = d ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
+    return `
+      ${heading}
+      <div class="comment ap-comment" onclick="openCardFromActivity('${card.id}')">
+        <span class="avatar lg" style="background:${escAttr(m ? m.color : '#8a93a0')}">${escAttr(m ? m.initials : '?')}</span>
+        <div class="comment-body">
+          <div class="ap-card-title">${escHtml(card.title||'Untitled')}</div>
+          <div class="comment-head"><b>${escHtml(m ? m.name : 'Unknown')}</b><span>${escHtml(when)}</span></div>
+          <div class="comment-text">${escHtml(comment.text)}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+function openCardFromActivity(cardId){
+  closeActivityPanel();
+  openCardModal(cardId);
+}
+closeOnBackdrop('activityPanelBackdrop', closeActivityPanel);
 
 /* ---------------- Card actions menu (☰ in the card header) ---------------- */
 function toggleCardMenu(e){
