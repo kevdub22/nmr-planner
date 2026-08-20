@@ -583,7 +583,15 @@
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;
   }
   .pcf-val.check-done{background:#e4f3ec; color:var(--green);}
-  .pcard-foot{display:flex; align-items:center; justify-content:space-between;}
+  .pcard-foot{display:flex; align-items:center; justify-content:space-between; margin-top:2px;}
+  .pcard-summary-btn{
+    background:none; border:none; cursor:pointer; color:#b8bfc9;
+    font-size:13px; padding:2px 5px; border-radius:4px; line-height:1;
+  }
+  .pcard-summary-btn:hover{background:rgba(8,31,66,0.08); color:var(--navy);}
+  .summary-popover{width:300px;}
+  .summary-body p{margin:0 0 8px 0; font-size:13px; line-height:1.5; color:#1c2431;}
+  .summary-body p:last-child{margin-bottom:0;}
   .avatars{display:flex;}
   .avatar{
     width:22px; height:22px; border-radius:50%;
@@ -2233,8 +2241,120 @@ function cardFrontHtml(c){
     <div class="pcard-title">${escHtml(c.title||'Untitled')}</div>
     ${badges.length ? `<div class="pcard-badges">${badges.join('')}</div>` : ''}
     ${fieldRows.length ? `<div class="pcard-fields">${fieldRows.join('')}</div>` : ''}
-    ${avatars ? `<div class="pcard-foot"><span></span><span class="avatars">${avatars}</span></div>` : ''}
+    <div class="pcard-foot">
+      <button class="pcard-summary-btn" title="Job summary" onclick="event.stopPropagation(); openCardSummary(event,'${c.id}')">✨</button>
+      ${avatars ? `<span class="avatars">${avatars}</span>` : '<span></span>'}
+    </div>
   </div>`;
+}
+
+/* ---------------- Job summary ----------------
+   A plain-language readout built entirely from the card's own fields — no
+   external call, no API key, nothing to keep secret in a static site. Reads
+   custom fields generically off boardCustomFields() so it keeps working if a
+   board's field set changes, while still calling out the common ones
+   (status, salesperson, programmer, estimates) in a sentence of their own
+   rather than a flat "Field: value" dump. */
+function summarizeCard(c){
+  const parts = [];
+  const l = listById(c.listId);
+  const labels = boardLabels().filter(x=>(c.labelIds||[]).includes(x.id));
+  const cf = boardCustomFields();
+  const fv = c.fields || {};
+  const fieldText = id=>{
+    const f = cf.find(x=>x.id===id);
+    if(!f) return '';
+    const v = fv[id];
+    if(v == null || v === '' || v === false) return '';
+    if(f.type === 'dropdown'){ const opt = (f.options||[]).find(o=>o.id===v); return opt ? opt.label : ''; }
+    if(f.type === 'checkbox') return 'Yes';
+    return String(v);
+  };
+
+  let opener = `"${c.title || 'Untitled'}"`;
+  if(labels.length) opener += ` is tagged ${labels.map(x=>x.name).join(', ')}`;
+  const status = fieldText('cf_status');
+  if(status) opener += `${labels.length ? ' and' : ' is'} currently marked ${status}`;
+  if(l) opener += ` in the "${l.name}" list`;
+  parts.push(opener + '.');
+
+  if(c.startDate || c.dueDate){
+    let line;
+    if(c.startDate && c.dueDate) line = `Scheduled ${fmtShortDate(c.startDate)} through ${fmtShortDate(c.dueDate)}`;
+    else if(c.dueDate) line = `Due ${fmtShortDate(c.dueDate)}`;
+    else line = `Starts ${fmtShortDate(c.startDate)}`;
+    if(c.dueDate){
+      const cls = dueClass(c.dueDate);
+      if(cls === 'due-over') line += ' — overdue';
+      else if(cls === 'due-soon') line += ' — coming up soon';
+    }
+    parts.push(line + '.');
+  }
+
+  const memberNames = (c.memberIds||[]).map(id=>memberById(id)).filter(Boolean).map(m=>m.name);
+  const sales = fieldText('cf_sales');
+  const programmer = fieldText('cf_programmer');
+  const people = [];
+  if(memberNames.length) people.push(`assigned to ${memberNames.join(', ')}`);
+  if(sales) people.push(`sold by ${sales}`);
+  if(programmer) people.push(`programmed by ${programmer}`);
+  if(people.length) parts.push(`It's ${people.join(', ')}.`);
+
+  const nmrEst = fieldText('cf_nmrest');
+  const hardCost = fieldText('cf_hardcost');
+  if(nmrEst || hardCost){
+    const bits = [];
+    if(nmrEst) bits.push(`an NMR estimate of ${nmrEst}`);
+    if(hardCost) bits.push(`a hard cost estimate of ${hardCost}`);
+    parts.push(`Budget-wise, it's carrying ${bits.join(' and ')}.`);
+  }
+
+  const cl = c.checklist || [];
+  if(cl.length){
+    const done = cl.filter(i=>i.done).length;
+    const state = done===0 ? 'not started' : done===cl.length ? 'complete' : `${Math.round(done/cl.length*100)}% complete`;
+    parts.push(`Checklist is ${state} (${done}/${cl.length} items).`);
+  }
+
+  // Every other custom field the common ones above didn't already cover,
+  // dropdowns/text and checkboxes alike, folded into one line rather than a
+  // sentence each — there's no natural-language framing for an arbitrary
+  // board-specific field the way there is for status or a salesperson.
+  const covered = new Set(['cf_status','cf_sales','cf_nmrest','cf_hardcost','cf_programmer']);
+  const extra = [];
+  cf.forEach(f=>{
+    if(covered.has(f.id)) return;
+    const v = fieldText(f.id);
+    if(v) extra.push(`${f.name.replace(/[?"]/g,'')}: ${v}`);
+  });
+  if(extra.length) parts.push(extra.join(' · ') + '.');
+
+  const descText = descToText(c.desc);
+  parts.push(descText ? `Notes: "${descText.length > 160 ? descText.slice(0,157)+'…' : descText}"` : 'No description has been added yet.');
+
+  const comments = c.comments || [];
+  if(comments.length) parts.push(`${comments.length} comment${comments.length===1?'':'s'} on this card.`);
+
+  return parts;
+}
+
+let cardSummaryEl = null;
+function closeCardSummary(){
+  if(cardSummaryEl){ cardSummaryEl.remove(); cardSummaryEl = null; }
+}
+function openCardSummary(evt, cardId){
+  evt.stopPropagation();
+  closeCardSummary();
+  const c = cardById(cardId);
+  if(!c) return;
+  const pop = document.createElement('div');
+  pop.className = 'mini-popover summary-popover';
+  pop.innerHTML = `
+    <div class="mp-head">✨ Job Summary<button class="cm-icon-btn" onclick="closeCardSummary()">✕</button></div>
+    <div class="summary-body">${summarizeCard(c).map(p=>`<p>${escHtml(p)}</p>`).join('')}</div>
+  `;
+  cardSummaryEl = pop;
+  positionPopover(pop, evt.currentTarget);
 }
 
 /* ---------------- Archive ----------------
@@ -3518,6 +3638,7 @@ document.addEventListener('click', e=>{
   if(ciAssigneePopoverEl && !clickWasInside(e, ciAssigneePopoverEl)) closeCiAssigneePopover();
   if(ciMenuEl && !clickWasInside(e, ciMenuEl)) closeCiMenu();
   if(templatePickerEl && !clickWasInside(e, templatePickerEl)) closeTemplatePicker();
+  if(cardSummaryEl && !clickWasInside(e, cardSummaryEl)) closeCardSummary();
 });
 
 // #cardModal itself is never replaced (only its innerHTML, on every render),
@@ -3546,6 +3667,7 @@ document.addEventListener('keydown', e=>{
     else if(ciAssigneePopoverEl) closeCiAssigneePopover();
     else if(ciMenuEl) closeCiMenu();
     else if(templatePickerEl) closeTemplatePicker();
+    else if(cardSummaryEl) closeCardSummary();
     else if(menu && !menu.hidden) closeCardMenu();
     else if(openCardId) closeCardModal();
   }
